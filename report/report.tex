@@ -41,7 +41,7 @@
 \PaperTitle{Automatic generation of Slovenian traffic news for RTV Slovenija} 
 
 % Authors (student competitors) and their info
-\Authors{Janez (), Veljko Dudić, and Marko Rozman}
+\Authors{Janez Kuhar, Veljko Dudić, and Marko Rozman}
 
 % Advisors
 \affiliation{\textit{Advisors: Slavko Žitnik}}
@@ -79,34 +79,38 @@ In this report we present the related works, initial ideas and proposed dataset 
 \section*{Introduction}
 The project focuses on replacing the manual production of traffic reports with an automated system. Traffic data provided in tabular form and traffic data from the promet.si website is used to generate traffic reports according to provided specifications.
 
+\subsection*{Motivation}
 
-%------------------------------------------------
-
-
-\subsection{Project Context and Motivation}
-\begin{itemize}
-	\item Timely Information: Reliable traffic updates are critical for public safety and efficient transportation management.
-	\item Manual Process Limitations: Currently, students manually verify and type these reports every 30 minutes, leading to potential delays and inaccuracies.
-	\item Automated Solution: By utilizing LLMs and advanced prompt engineering (inspired by works on news headline generation), we aim to generate clear, concise, and contextually accurate traffic news.
-\end{itemize}
+\textbf{Timely Information.} Reliable traffic updates are critical for public safety and efficient transportation management.\\
+\textbf{Manual Process Limitations.} Currently, students manually verify and type these reports every 30 minutes, leading to potential delays and inaccuracies.\\
+\textbf{Automated Solution.} By utilizing LLMs and advanced prompt engineering (inspired by works on news headline generation), we aim to generate clear, concise, and contextually accurate traffic news.
 
 \section{Related Work}
-Recent studies in neural summarization and headline generation provide valuable insights for our project:
-\begin{itemize}
-    \item HG-News: News Headline Generation Based on a Generative Pre-Training Model: This paper presents a decoder-only architecture that incorporates pointer mechanisms and n-gram language features. Its focus on generating succinct news headlines while accurately handling out-of-vocabulary terms (such as specific road names) can be directly applicable to our task. \cite{liHGNewsNewsHeadline2021}
 
-    \item Algorithm for Automatic Abstract Generation of Russian Text under ChatGPT System: This work leverages the ChatGPT system to preprocess and generate concise summaries of Russian texts. Although in Russian, Its detailed data preprocessing pipeline (including tokenization, removal of stop words, and punctuation handling) and the integration of pointer mechanisms to capture key information offer a robust framework that can be maybe adapted to Slovene to ensure the fluency and accuracy of traffic news. \cite{houAlgorithmAutomaticAbstract2024}
-\end{itemize}
+Li et al. \cite{liHGNewsNewsHeadline2021} proposed a decoder-only model for headline generation,
+incorporating multihead attention, sentiment features, and part-of-speech information. Its focus
+on generating succinct news headlines while accurately handling out-of-vocabulary
+terms (such as specific road names) can be directly applicable to our task.
+
+In a more recent work on the topic of text summarization \cite{houAlgorithmAutomaticAbstract2024}, a ChatGPT-based
+algorithm for summarizing Russian texts was proposed. The suggested approach combined preprocessing (e.g., word segmentation,
+stop word removal) with BERT for contextual understanding and a pointer mechanism for out-of-vocabulary
+words.
+
+Sha et al. \cite{sha2018order} proposed an order-planning mechanism for text generation from tabular data, combining
+link-based attention with traditional content-based attention to model the sequence of information. Their approach
+was further enhanced by a copy mechanism to handle rare words, improving the model's ability to generate accurate
+and coherent summaries from structured data.
 
 \section{Initial ideas}
 \begin{itemize}
     \item Initial Prompt Engineering: Experiments will start by generating news texts directly from the structured traffic data using prompts.
     
-    \item Selection of important data. Our observations show that the final news report is mostly made from only few important data points from the excel file. We intend to filter the data to remove duplicate enteries and automaticly select the important data points relavant for our traffic news generation.
+    \item Selection of important data. Our observations show that the final news report is mostly made from only few important data points from the Excel file. We intend to filter the data to remove duplicate enteries and automaticly select the important data points relavant for our traffic news generation.
     
     \item Enhanced Generation through Fine-Tuning: The project will then incorporate parameter-efficient fine-tuning (e.g., LoRA) and retrieval techniques to further refine the generated content, ensuring correct road naming and event descriptions.
     
-    \item Evaluation: A robust evaluation framework will be established using both automatic metrics (such as ROUGE, precision, recall, and F1) and human judgment to verify that the generated texts meet RTV Slovenija’s standards.
+    \item Evaluation: A robust evaluation framework will be established using both automatic metrics (such as ROUGE, precision, recall, and F1) and human judgment to verify that the generated texts meet RTV Slovenija's standards.
 
     \item Pointer Mechanisms: Integrate pointer mechanisms to ensure that domain-specific terminology (e.g., road names and traffic event descriptors) is accurately reproduced, minimizing the risk of omitting critical details.
 
@@ -116,8 +120,21 @@ Recent studies in neural summarization and headline generation provide valuable 
 
     \end{itemize}
 
-\section{Project dataset}
-The primary dataset is the Excel file \newline \texttt{Podatki - PrometnoPorocilo\_2022\_2023\_2024.xlsx}, which contains detailed real-time and historical traffic information from the \textit{promet.si} portal. The documents \texttt{PROMET.docx} and \texttt{PROMET osnove.docx} provide the rules for road naming, event hierarchy, and news formulation. We will also use Python notebooks such as \newline \texttt{Prompting\_and\_lora\_fine-tuning.ipynb}, and  \newline \texttt{Retrieval\_augmented\_generation.ipynb} for insights into prompt engineering and fine-tuning, which will guide our approach. We intend to normalize the data by enforcing standard naming conventions, filtering out irrelevant details, and tagging urgent events (e.g., \textit{nujna prometna informacija}).
+\section{Methods}
+
+\subsection*{Project dataset}
+
+The primary dataset was provided to us by the TA. It consists of three important sets of files:
+
+\begin{enumerate}
+    \item \textbf{A structured Excel }file containing historical traffic report information from \textit{promet.si}.
+    \item \textbf{Word documents} with lexical notes and the prescribed structure of a traffic report.
+    \item \textbf{Ground truth data} in Rich Text Format (RTF) files, providing text in a ready-to-use format for radio hosts.
+\end{enumerate}
+
+% ToDo - verjetno nov subsetction "preprocessing"
+% We intend to normalize the data by enforcing standard naming conventions, filtering out irrelevant details,
+% and tagging urgent events (e.g., \textit{nujna prometna informacija}).
 
 
 %----------------------------------------------------------------------------------------
