@@ -47,7 +47,7 @@
 \affiliation{\textit{Advisors: Slavko Žitnik}}
 
 % Keywords
-\Keywords{Keyword1, Keyword2, Keyword3 ...}
+\Keywords{}
 \newcommand{\keywordname}{Keywords}
 
 
@@ -56,7 +56,7 @@
 %----------------------------------------------------------------------------------------
 
 \Abstract{
-The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here. The abstract goes here.
+In this report we present the related works, initial ideas and proposed dataset for our project.
 }
 
 %----------------------------------------------------------------------------------------
@@ -101,11 +101,12 @@ Recent studies in neural summarization and headline generation provide valuable 
 \section{Initial ideas}
 \begin{itemize}
     \item Initial Prompt Engineering: Experiments will start by generating news texts directly from the structured traffic data using prompts.
+    
+    \item Selection of important data. Our observations show that the final news report is mostly made from only few important data points from the excel file. We intend to filter the data to remove duplicate enteries and automaticly select the important data points relavant for our traffic news generation.
+    
     \item Enhanced Generation through Fine-Tuning: The project will then incorporate parameter-efficient fine-tuning (e.g., LoRA) and retrieval techniques to further refine the generated content, ensuring correct road naming and event descriptions.
     
     \item Evaluation: A robust evaluation framework will be established using both automatic metrics (such as ROUGE, precision, recall, and F1) and human judgment to verify that the generated texts meet RTV Slovenija’s standards.
-    
-    \item Decoder-Only Architecture: Adopt a decoder-only approach to directly generate text from preprocessed traffic data. This strategy simplifies the model while focusing on producing clear and concise outputs.
 
     \item Pointer Mechanisms: Integrate pointer mechanisms to ensure that domain-specific terminology (e.g., road names and traffic event descriptors) is accurately reproduced, minimizing the risk of omitting critical details.
 
@@ -113,8 +114,10 @@ Recent studies in neural summarization and headline generation provide valuable 
 
     \item N-gram Language Features: Incorporate n-gram features to improve language fluency and ensure that generated sentences are coherent and stylistically consistent with existing RTV Slovenija news.
 
+    \end{itemize}
 
-\end{itemize}
+\section{Project dataset}
+The primary dataset is the Excel file \newline \texttt{Podatki - PrometnoPorocilo\_2022\_2023\_2024.xlsx}, which contains detailed real-time and historical traffic information from the \textit{promet.si} portal. The documents \texttt{PROMET.docx} and \texttt{PROMET osnove.docx} provide the rules for road naming, event hierarchy, and news formulation. We will also use Python notebooks such as \newline \texttt{Prompting\_and\_lora\_fine-tuning.ipynb}, and  \newline \texttt{Retrieval\_augmented\_generation.ipynb} for insights into prompt engineering and fine-tuning, which will guide our approach. We intend to normalize the data by enforcing standard naming conventions, filtering out irrelevant details, and tagging urgent events (e.g., \textit{nujna prometna informacija}).
 
 
 %----------------------------------------------------------------------------------------
