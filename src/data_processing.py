@@ -244,14 +244,18 @@ def select_matching_lines(ground_truth_df: pd.DataFrame,
         # If not enough rows, take the last min_size rows before datum
         if len(offset_rows) < min_size:
             offset_rows = data_df[data_df['Datum'] <= datum].tail(min_size)
+            print(f"selecting last {min_size} rows")
         
         # Select text columns
         string_columns = offset_rows.select_dtypes(include=['object']).columns
         
-        # Remove duplicates
+        # Replace duplicate cells with empty strings (keeping only the last occurrence)
         deduped = offset_rows.copy()
         for col in string_columns:
-            deduped.drop_duplicates(subset=[col], keep='last', inplace=True)
+            # Find rows with duplicate values (keeping the last occurrence)
+            duplicated = deduped[col].duplicated(keep='last')
+            # Replace duplicates with empty string
+            deduped.loc[duplicated, col] = ''
         
         # Concatenate text columns
         deduped['Concated'] = deduped[string_columns].apply(
@@ -263,8 +267,8 @@ def select_matching_lines(ground_truth_df: pd.DataFrame,
         inputs_for_llm = '\n'.join(deduped['Concated'].tolist())
         
         results.append({
-            'GroundTruth': ground_truth,
-            'Input': inputs_for_llm
+            'Input': inputs_for_llm,
+            'GroundTruth': ground_truth
         })
     
     logger.info(f"Created {len(results)} matched entries")
@@ -316,8 +320,8 @@ if __name__ == "__main__":
         'csv_file': r'C:\Users\rozma\Downloads\Podatki - PrometnoPorocilo_2022_2023_2024.csv',
         'save_folder': r".\Data",
         'files_to_load': 100,
-        'min_size': 1,
-        'sentences_offset': pd.Timedelta(minutes=30.0),
+        'min_size': 5,
+        'sentences_offset': pd.Timedelta(minutes=0),
         'output_file': os.path.join(r".\Data", 'examples.json')
     }
     
