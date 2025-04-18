@@ -1,208 +1,293 @@
-import pandas as pd
-import re
 import os
 import glob
 import re
-import win32com.client  # Required for RTF reading via Word
 import json
+import pandas as pd
+from pathlib import Path
+import logging
+from typing import List, Dict, Any, Optional
+import win32com.client
+from contextlib import contextmanager
 
 
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 
-def load_files(promet_folder:str, promet_subfolders:list[str], limit:int=None)->list[str]:
-    """
-    Load RTF files from a specified directory and return their contents as a list of strings."""
-    
-    
-    rtf_contents = []
-
-    # Start Word
+@contextmanager
+def word_application():
+    """Context manager for Word application to ensure proper resource cleanup."""
     word = win32com.client.Dispatch("Word.Application")
     word.Visible = False
+    try:
+        yield word
+    finally:
+        try:
+            word.Quit()
+        except:
+            logger.warning("Error while closing Word application")
+
+
+def load_rtf_file(word_app, file_path: str) -> Optional[str]:
+    """Load a single RTF file using Word application."""
+    try:
+        doc = word_app.Documents.Open(file_path)
+        content = doc.Content.Text
+        doc.Close(False)
+        return content
+    except Exception as e:
+        logger.error(f"Error reading file {file_path}: {e}")
+        return None
+
+
+def load_files(promet_folder: str, promet_subfolders: List[str], limit: Optional[int] = None) -> List[str]:
+    """
+    Load RTF files from specified directories and return their contents as a list of strings.
     
-    count = 0
-    for subfolder in promet_subfolders:
+    Args:
+        promet_folder: Base directory containing RTF files
+        promet_subfolders: List of subdirectories to search within promet_folder
+        limit: Maximum number of files to load (None for all files)
         
-        folder_path = os.path.join(promet_folder, subfolder)
-        if not os.path.exists(folder_path):
-            print(f"Folder {folder_path} does not exist.")
-            return []
+    Returns:
+        List of strings containing file contents
+    """
+    rtf_contents = []
+    count = 0
     
-        rtf_files = glob.glob(os.path.join(folder_path, "**", "*.rtf"), recursive=True)
+    with word_application() as word:
+        for subfolder in promet_subfolders:
+            folder_path = os.path.join(promet_folder, subfolder)
+            if not os.path.exists(folder_path):
+                logger.warning(f"Folder {folder_path} does not exist.")
+                continue
+        
+            rtf_files = glob.glob(os.path.join(folder_path, "**", "*.rtf"), recursive=True)
+            logger.info(f"Found {len(rtf_files)} RTF files in {subfolder}")
 
-        for i, rtf_file in enumerate(rtf_files):
-            count += 1
-            print(f"Loading file {i+1}/{len(rtf_files)} in {subfolder}", end='\r')
-            try:
-                doc = word.Documents.Open(rtf_file)
-                doc_content = doc.Content.Text
-                doc.Close(False)
-                rtf_contents.append(doc_content)
+            for i, rtf_file in enumerate(rtf_files):
+                logger.info(f"Loading file {i+1}/{len(rtf_files)} in {subfolder}")
+                content = load_rtf_file(word, rtf_file)
                 
+                if content:
+                    rtf_contents.append(content)
+                    count += 1
+                    
                 if limit is not None and count >= limit:
+                    logger.info(f"Reached file limit of {limit}")
                     break
-            except Exception as e:
-                print(f"Error reading file {rtf_file}: {e}")
 
-    # Quit Word
-    word.Quit()
-    print("")
-    print("Loading done!")
+    logger.info(f"Successfully loaded {len(rtf_contents)} files")
     return rtf_contents
 
 
+def clean_text(text: str) -> str:
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r' +', ' ', text)
+    return text.strip()
 
-def files_to_dataframe(files:list[str])->pd.DataFrame:
+
+def extract_date(line: str) -> Optional[str]:
+    match = re.search(r'\d{1,2}\. \d{1,2}\. \d{2,4} \d{1,2}\.\d{1,2}', line)
+    return match.group(0) if match else None
+
+
+def files_to_dataframe(files: List[str]) -> pd.DataFrame:
     """
     Convert a list of RTF file contents to a DataFrame with 'Datum' and 'GroundTruth' columns.
-    Each file's content is split into lines, and the first line is used to extract the date.
-    The rest of the lines are concatenated to form the 'GroundTruth' text. Removes new lines, tabs, multiple spaces..."""
+    """
+    data = []
     
-    gt = pd.DataFrame(columns=['Datum', 'GroundTruth'])
-    
-    count = 0
-    files_count = len(files)
-
-    for ground_truth in files:
-        count += 1
-        print(f"Processing file {count}/{files_count} ", end='\r')  
+    for i, ground_truth in enumerate(files):
+        logger.info(f"Processing file {i+1}/{len(files)}")
         
-        #split by line breaks, remove tabs, new lines, multispaces...
-        lines = re.split(r'\r', ground_truth)
-        lines = map(lambda x: re.sub(r'\s+', ' ', x), lines)
-        lines = list(map(lambda x: re.sub(r' +', ' ', x), lines))
+        # Split by line breaks and clean text
+        lines = [clean_text(line) for line in re.split(r'\r', ground_truth)]
+        # Remove empty lines
+        lines = [line for line in lines if line]
         
-        #remove empty lines
-        lines = list(filter(lambda x: x.strip() != '', lines))
-        
+        if not lines:
+            logger.warning(f"No content found in file {i+1}")
+            continue
+            
         line_with_date = lines[0]
+        result_date_string = extract_date(line_with_date)
         
-        relavant_lines = lines[1:]
-        
-        result_date_string = re.search(r'\d{1,2}\. \d{1,2}\. \d{2,4} \d{1,2}\.\d{1,2}', line_with_date)
-
-        if result_date_string is None:
-            print(f"Date not found in line: {line_with_date}")
+        if not result_date_string:
+            logger.warning(f"Date not found in line: {line_with_date}")
             continue
         
-        result_date_string = result_date_string.group(0)
+        # Join remaining lines for ground truth text
+        result = ' '.join(lines[1:])
         
-        result =  ' '.join(relavant_lines)
-        #try converting the date to datetime
+        # Convert date string to datetime
         try:
             result_date = pd.to_datetime(result_date_string, format='%d. %m. %Y %H.%M')
-            gt.loc[len(gt)] = [result_date, result]
+            data.append({'Datum': result_date, 'GroundTruth': result})
         except ValueError:
-            print(f"Date conversion error for line: {line_with_date}")
-            continue
-    print("")
-    print(f"Processing done!")
-    return gt
-
-def load_data(file_path:str)->pd.DataFrame:
+            logger.warning(f"Date conversion error for line: {line_with_date}")
     
-    #read csv file, Datum column is in format 01/01/2022 00:07 others are in utf-8
-    df = pd.read_csv(file_path, sep=';', low_memory=False)
-
-    #replace html tags with space
-    df = df.replace(r'<.*?>', ' ', regex=True) 
-
-    #remove all columns that start with Title
-    df = df[df.columns.drop(list(df.filter(regex='Title')))]
-
-    #remove columns 'LegacyId', and 'Operater'
-    df = df.drop(columns=['LegacyId', 'Operater'])
-
-    #convert columns 'Datum' from 01/01/2022 00:07 to datetime
-    df['Datum'] = pd.to_datetime(df['Datum'], format='%d/%m/%Y %H:%M')
-
-    # #replace all nan values with empty string
-    df = df.replace('nan', '')
-
-    # #replace all NULL values with empty string
-    df = df.replace('NULL', '')
-
-    #replace all None values with empty string
-    df = df.fillna('')
-
-    column_names_without_datum_column = df.columns.drop('Datum')
-
-    #replace all cells with only whitespace with empty string
-    df[column_names_without_datum_column] = df[column_names_without_datum_column].replace(r'^\s*$', '', regex=True)
-
-    #remove all double triple spaces
-    df[column_names_without_datum_column] = df.select_dtypes(include=['object']).apply(lambda x: x.str.replace(r'\s+', ' ', regex=True).str.strip())
-
-    #replace "- na " in ContentOvireSLO with "Na "
-    #velike začetnice za npr Na štajerski avtocesti
-    df['ContentOvireSLO'] = df['ContentOvireSLO'].str.replace('- na ', 'Na ')
-
-    #replace "; - " and any one letter after it in ContentOvireSLO with ". " and that letter in uppercase
-    #nekje se pojavljajo stavki kot naprimer "...v Ljubljani; - na štajerski avtocesti..."
-    df['ContentOvireSLO'] = df['ContentOvireSLO'].str.replace(r'; - (\w)', lambda m: '. ' + m.group(1).upper(), regex=True)
-
-    #replace "; " in ContentOvireSLO with ". "
-    #še vedno se pojavljajo stavki kot naprimer "...v Ljubljani; Na štajerski avtocesti..."
-    df['ContentOvireSLO'] = df['ContentOvireSLO'].str.replace('; ', '. ')
-
-    #nekatere celice imajo samo klicaj ali samo piko, zamenjamo jih z prazno celico
-    df[column_names_without_datum_column] = df[column_names_without_datum_column].replace(r'^[!.]$', '', regex=True)
-    
+    df = pd.DataFrame(data)
+    logger.info(f"Created DataFrame with {len(df)} entries")
     return df
 
 
-def select_matching_lines(ground_truth_df:pd.DataFrame, data_df:pd.DataFrame, min_size:int, sentances_offset:pd.Timedelta)->list[dict]:
+def load_data(file_path: str) -> pd.DataFrame:
+    """
+    Load and preprocess CSV data file.
+    """
+    logger.info(f"Loading data from {file_path}")
+    
+    # Read CSV file
+    df = pd.read_csv(file_path, sep=';', low_memory=False)
+    logger.info(f"Loaded {len(df)} rows and {len(df.columns)} columns")
+    
+    # Data cleaning steps
+    df = (df
+          # Remove HTML tags
+          .replace(r'<.*?>', ' ', regex=True)
+          # Drop Title columns
+          .loc[:, ~df.columns.str.startswith('Title')]
+          # Drop LegacyId and Operater columns
+          .drop(columns=['LegacyId', 'Operater'], errors='ignore')
+    )
+    
+    # cast date to date
+    df['Datum'] = pd.to_datetime(df['Datum'], format='%d/%m/%Y %H:%M', errors='coerce')
+    
+    # Handle missing values
+    df = df.fillna('')
+
+    text_columns = df.columns.drop('Datum')
+    
+    # Clean whitespace
+    df[text_columns] = df[text_columns].replace(r'^\s*$', '', regex=True)
+    df[text_columns] = df.select_dtypes(include=['object']).apply(
+        lambda x: x.str.replace(r'\s+', ' ', regex=True).str.strip()
+    )
+    
+    # Specific content cleaning for ContentOvireSLO column
+    if 'ContentOvireSLO' in df.columns:
+        df['ContentOvireSLO'] = (df['ContentOvireSLO']
+                              .str.replace('- na ', 'Na ')
+                              .str.replace(r'; - (\w)', lambda m: '. ' + m.group(1).upper(), regex=True)
+                              .str.replace('; ', '. '))
+    
+    # Remove cells with just punctuation
+    df[text_columns] = df[text_columns].replace(r'^[!.]$', '', regex=True)
+    
+    logger.info(f"Finished preprocessing {len(df)} rows")
+    return df
+
+
+def select_matching_lines(ground_truth_df: pd.DataFrame, 
+                         data_df: pd.DataFrame, 
+                         min_size: int, 
+                         sentences_offset: pd.Timedelta) -> List[Dict[str, str]]:
+    """
+    Match ground truth data with input data based on timestamps.
+    
+    Args:
+        ground_truth_df: DataFrame with ground truth data
+        data_df: DataFrame with input data
+        min_size: Minimum number of rows to include
+        sentences_offset: Time window to look back for matching data
+        
+    Returns:
+        List of dictionaries with matched data
+    """
     results = []
-   
-    for datum, ground_truth in ground_truth_df.itertuples(False):
-        
-        offset_rows = data_df[data_df['Datum'].between(datum - sentances_offset, datum)]
-        
-        if offset_rows.shape[0] < min_size:
-            offset_rows = (data_df[data_df['Datum'] <= datum]).tail(min_size)
-        
-        string_column_names = list(offset_rows.select_dtypes(include=['object']).columns)
-        
-        removed_duplicates = offset_rows.copy()
-        for col_nam in string_column_names:
-            removed_duplicates.drop_duplicates(subset=[col_nam],keep='last',inplace=True)
+    logger.info(f"Matching {len(ground_truth_df)} ground truth entries")
+    
+    for i, (datum, ground_truth) in enumerate(ground_truth_df.itertuples(False)):
+        if i % 10 == 0:
+            logger.info(f"Processed {i}/{len(ground_truth_df)} entries")
             
-        removed_duplicates['Concated'] = removed_duplicates[string_column_names].apply(lambda row: ' '.join(value for value in row.values.astype(str) if value.strip()), axis=1)
+        # Get rows within time window
+        offset_rows = data_df[data_df['Datum'].between(datum - sentences_offset, datum)]
         
-        inputs_for_llm = '\n'.join(removed_duplicates['Concated'].tolist())
+        # If not enough rows, take the last min_size rows before datum
+        if len(offset_rows) < min_size:
+            offset_rows = data_df[data_df['Datum'] <= datum].tail(min_size)
+        
+        # Select text columns
+        string_columns = offset_rows.select_dtypes(include=['object']).columns
+        
+        # Remove duplicates
+        deduped = offset_rows.copy()
+        for col in string_columns:
+            deduped.drop_duplicates(subset=[col], keep='last', inplace=True)
+        
+        # Concatenate text columns
+        deduped['Concated'] = deduped[string_columns].apply(
+            lambda row: ' '.join(value for value in row.values.astype(str) if value.strip()), 
+            axis=1
+        )
+        
+        # Join all rows
+        inputs_for_llm = '\n'.join(deduped['Concated'].tolist())
         
         results.append({
             'GroundTruth': ground_truth,
             'Input': inputs_for_llm
         })
-        
+    
+    logger.info(f"Created {len(results)} matched entries")
     return results
 
 
-if __name__ == "__main__":
+def save_to_json(data: List[Dict], output_path: str):
+    """Save data to JSON file."""
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+    logger.info(f"Saved data to {output_path}")
+
+
+def main(config: Dict[str, Any]):
+    """Main pipeline function."""
+    logger.info("Starting data processing pipeline")
     
-    PROMET_FOLDER = r"C:\Users\rozma\Downloads\RTVSlo\RTVSlo\Podatki"
-    PROMET_SUBFOLDERS = [r'Promet 2022']
-    CSV_FILE = r'C:\Users\rozma\Downloads\Podatki - PrometnoPorocilo_2022_2023_2024.csv'
-    SAVE_FOLDER = r".\Data"
-
-    files_to_load = 100
-    min_size = 1
-    sentances_offset = pd.Timedelta(minutes=30.0)
-
-    files = load_files(PROMET_FOLDER, PROMET_SUBFOLDERS, limit=files_to_load)
+    # Load and process RTF files
+    files = load_files(
+        config['promet_folder'], 
+        config['promet_subfolders'], 
+        limit=config['files_to_load']
+    )
     ground_truth_df = files_to_dataframe(files)
+    
+    # Load and process CSV data
+    data_df = load_data(config['csv_file'])
+    
+    # Match ground truth with input data
+    examples = select_matching_lines(
+        ground_truth_df, 
+        data_df, 
+        config['min_size'], 
+        config['sentences_offset']
+    )
+    
+    # Save results
+    save_to_json(examples, config['output_file'])
+    
+    logger.info("Pipeline completed successfully")
 
-    #load sentances for files
-    data_df = load_data(CSV_FILE)
-    
-    testing_examples = select_matching_lines(ground_truth_df, data_df, min_size, sentances_offset)
-    
-    #save to json file
-    output_file = os.path.join(SAVE_FOLDER, 'examples.json')
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(testing_examples, f, ensure_ascii=False, indent=4)
-            
-        
 
+if __name__ == "__main__":
+    # Configuration
+    config = {
+        'promet_folder': r"C:\Users\rozma\Downloads\RTVSlo\RTVSlo\Podatki",
+        'promet_subfolders': [r'Promet 2022'],
+        'csv_file': r'C:\Users\rozma\Downloads\Podatki - PrometnoPorocilo_2022_2023_2024.csv',
+        'save_folder': r".\Data",
+        'files_to_load': 100,
+        'min_size': 1,
+        'sentences_offset': pd.Timedelta(minutes=30.0),
+        'output_file': os.path.join(r".\Data", 'examples.json')
+    }
     
+    main(config)
