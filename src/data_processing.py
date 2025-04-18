@@ -8,6 +8,8 @@ import logging
 from typing import List, Dict, Any, Optional
 import win32com.client
 from contextlib import contextmanager
+from bs4 import BeautifulSoup
+
 
 
 # Set up logging
@@ -136,25 +138,50 @@ def files_to_dataframe(files: List[str]) -> pd.DataFrame:
     return df
 
 
+def html_to_plain_text(html_content):
+    """Convert HTML to plain text while preserving structure."""
+    if not html_content or not isinstance(html_content, str) or not html_content.strip():
+        return ""
+    
+    # Only process content that might have HTML
+    if '<' not in html_content and '>' not in html_content:
+        return html_content
+        
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    # Handle lists specifically
+    for ul in soup.find_all('ul'):
+        for li in ul.find_all('li'):
+            li.insert_before('• ')
+            li.append('\n')
+    
+    # Get text while preserving whitespace structure
+    text = soup.get_text(separator=' ')
+    
+    # Clean up whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text
+
+
+
 def load_data(file_path: str) -> pd.DataFrame:
     """
     Load and preprocess CSV data file.
     """
     logger.info(f"Loading data from {file_path}")
-    
+
     # Read CSV file
     df = pd.read_csv(file_path, sep=';', low_memory=False)
     logger.info(f"Loaded {len(df)} rows and {len(df.columns)} columns")
     
-    # Data cleaning steps
-    df = (df
-          # Remove HTML tags
-          .replace(r'<.*?>', ' ', regex=True)
-          # Drop Title columns
-          .loc[:, ~df.columns.str.startswith('Title')]
-          # Drop LegacyId and Operater columns
-          .drop(columns=['LegacyId', 'Operater'], errors='ignore')
-    )
+    
+    columns_to_drop = [ 'LegacyId', 'Operater','TitlePomembnoSLO', 'TitleNesreceSLO', 'TitleZastojiSLO',
+       'TitleVremeSLO', 'TitleOvireSLO', 'TitleDeloNaCestiSLO',
+       'TitleOpozorilaSLO', 'TitleMednarodneInformacijeSLO',
+       'TitleSplosnoSLO']
+    
+    df = df.drop(columns=columns_to_drop, errors='ignore')
     
     # cast date to date
     df['Datum'] = pd.to_datetime(df['Datum'], format='%d/%m/%Y %H:%M', errors='coerce')
@@ -162,11 +189,15 @@ def load_data(file_path: str) -> pd.DataFrame:
     # Handle missing values
     df = df.fillna('')
 
-    text_columns = df.columns.drop('Datum')
+    #parse html content to plain text
+    text_columns = ['A1', 'B1', 'C1', 'A2', 'B2', 'C2', 'ContentPomembnoSLO', 'ContentNesreceSLO', 'ContentZastojiSLO', 'ContentVremeSLO', 'ContentOvireSLO', 'ContentDeloNaCestiSLO', 'ContentOpozorilaSLO', 'ContentMednarodneInformacijeSLO', 'ContentSplosnoSLO']
+    
+    for column in text_columns:
+        df[column] = df[column].apply(html_to_plain_text)
     
     # Clean whitespace
     df[text_columns] = df[text_columns].replace(r'^\s*$', '', regex=True)
-    df[text_columns] = df.select_dtypes(include=['object']).apply(
+    df[text_columns] = df[text_columns].apply(
         lambda x: x.str.replace(r'\s+', ' ', regex=True).str.strip()
     )
     
