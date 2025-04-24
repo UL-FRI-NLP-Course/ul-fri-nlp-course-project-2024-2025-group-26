@@ -1,3 +1,7 @@
+import os
+import json
+import random
+
 from transformers import pipeline
 import torch
 
@@ -10,34 +14,73 @@ pline = pipeline(
     device_map="auto"  # Let transformers + accelerate handle GPU
 )
 
-# Read CSV input
-with open("vhod.txt", "r") as f:
-    input_string = f.read()
+# === Setup: Get Input and Output file names ===
+input_path = os.getenv("INPUT_FILE")
+output_path = os.getenv("OUTPUT_FILE")
+if not input_path:
+    raise ValueError("⚠️ INPUT_FILE environment variable not set.")
+if not output_path:
+    raise ValueError("⚠️ OUTPUT_FILE environment variable not set.")
 
-# Read formatting instructions
-with open("navodila.txt", "r") as f:
-    formatting = f.read()
-with open("navodila_osnove.txt", "r") as f:
-    formatting_basic = f.read()
+# === Load input examples from file ===
+with open(input_path, "r", encoding="utf-8") as f:
+    examples = json.load(f)
 
-# Combine all parts into one prompt
-full_prompt = (
-    "Prosim, izdelaj prometno poročilo za radio. "
-    "Uporabi podatke v obliki CSV, ki so podani spodaj. "
-    "CSV podatki:\n"
-    f"{input_string}\n\n"
-    "Upoštevaj naslednja navodila za oblikovanje besedila:\n\n"
-    f"{formatting_basic}\n\n"
-    "Dodatna navodila:\n"
-    f"{formatting}\n\n"
-    "Prosim, ne povzemaj navodil. Potrebujem samo pravilno formatirano poročilo."
-    "Bodi kratek. Poročila so tipično krajša od 250 besed."
-)
+few_shot_count = 8
+num_trials = 32
 
-# Wrap the full prompt as a user message
-message = [{"role": "user", "content": full_prompt}]
+if len(examples) < few_shot_count + 1:
+    raise ValueError("⚠️ Potrebujemo vsaj 9 primerov v datoteki!")
 
-# Generate response
-# response = pline(message, max_new_tokens=512)
-response = pline(message, max_new_tokens=1024)
-print("Model's response:", response[0]["generated_text"][-1]["content"])
+results = []
+
+# === Main loop: Run multiple trials ===
+for trial_num in range(num_trials):
+    print("=" * 100)
+    print(f"🔁 Trial {trial_num + 1}/{num_trials} — Few-shot: {few_shot_count}")
+
+    # Randomly sample few-shot examples; Choose one test example not in few-shot
+    selected_examples = random.sample(examples, k=few_shot_count + 1)
+    few_shot_examples = selected_examples[:-1]
+    test_example = selected_examples[-1]
+
+    # Build the prompt for the model
+    prompt_parts = [
+        f"Vhod:\n{ex['Input']}\nIzhod:\n{ex['GroundTruth']}\n"
+        for ex in few_shot_examples
+    ]
+    prompt_parts.append(f"Vhod:\n{test_example['Input']}\nIzhod:\n")
+    full_prompt = "\n".join(prompt_parts)
+
+    # Format as a chat message for the model
+    message = [{"role": "user", "content": full_prompt}]
+
+    # Generate response from model
+    with torch.no_grad():
+        response = pline(message, max_new_tokens=1024)
+    generated_text = response[0]["generated_text"]
+
+    model_output = (
+        generated_text[-1]["content"]
+        if isinstance(generated_text, list)
+        else generated_text
+    )
+
+    # Log to console
+    print("\n✅ Pričakovani izhod:")
+    print(test_example['GroundTruth'].strip())
+
+    print("\n🤖 Modelov izhod:")
+    print(model_output.strip())
+
+    # Append result to list
+    results.append({
+        "ModelOutput": model_output.strip(),
+        "GroundTruth": test_example['GroundTruth'].strip()
+    })
+
+    print("=" * 100 + "\n")
+
+# === Save all results to a JSON file ===
+with open(output_path, "w", encoding="utf-8") as f:
+    json.dump(results, f, ensure_ascii=False, indent=2)
