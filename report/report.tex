@@ -136,6 +136,54 @@ The primary dataset was provided to us by the TA. It consists of three important
 % We intend to normalize the data by enforcing standard naming conventions, filtering out irrelevant details,
 % and tagging urgent events (e.g., \textit{nujna prometna informacija}).
 
+\subsection*{Prompt Engineering}
+
+After preprocessing the tabular data, we employed a simple prompt engineering approach to generate the traffic news.
+We started with a \textit{few-shot} prompting \cite{promptingguide_fewshot} technique, where we provided the model
+with a few examples of preprocessed data and corresponding traffic news reports. This approach provides the model
+with contextual examples, helping it mimic the structure and tone of the target traffic news format.
+
+\subsection*{Evaluation metrics}
+
+The evaluation focuses on the BLEU score as a measure of translation quality, with the possibility of adding other metrics in the future.
+
+\noindent \textbf{BLEU Score:} The BLEU (Bilingual Evaluation Understudy) score is a popular metric for evaluating the quality of machine-generated text, particularly for tasks like text summarization or machine translation. It is based on precision, specifically n-gram precision, where a higher BLEU score indicates that the machine-generated text closely matches the ground truth.
+
+The BLEU score ranges from 0 to 1, where a higher value suggests better quality. However, BLEU has limitations, especially when dealing with languages that have more varied sentence structures or when evaluating more creative text generation tasks like traffic report creation. For example, it does not account for semantic meaning and may penalize diverse word choices or paraphrasing that is still correct. Additionally, BLEU heavily relies on n-gram matching, which may penalize acceptable lexical variations. For example, if the model uses different phrasing that still conveys the same meaning, it may receive a lower BLEU score, which does not necessarily reflect a poor-quality output.
+
+
+\section{Results and Evaluation}
+
+\subsection*{Computational Resources}
+
+Inference for all experiments was conducted on the ARNES High-Performance Computing (HPC) cluster, which provides robust resources for large-scale machine learning tasks. The cluster is equipped with NVIDIA H100 GPUs, each featuring 80GB of memory, enabling efficient handling of large language models.
+
+\subsection*{Quantitative Results}
+
+For each experimental setup, we ran 32 trials to ensure statistical reliability. During each trial, a randomly sampled
+set of input-output pairs was used, and the performance score was calculated for each pair.
+
+
+The baseline results for few-shot prompting with GaMS-9B-Instruct \cite{huggingface2025gams9b} are listed in Table~\ref{tab:bleu-results}. We experimented with different configurations by varying the number of shots (input/output pairs) and the number of rows merged from the Excel file into a single input.
+\begin{table}[h!]
+    \centering
+    \caption{Average BLEU scores for different few-shot prompting setups using GaMS-9B-Instruct. Each configuration was evaluated over 32 trials. \textbf{Rows}: The number of Excel rows merged into a single input. \textbf{Shots}: The number of input/output pairs presented to the model for few-shot prompting.}
+    \label{tab:bleu-results}
+    \small
+    \begin{tabular}{@{}cccc@{}}
+    \toprule
+    \textbf{Rows} & \textbf{Shots} & \textbf{Trials} & \textbf{BLEU} \\
+    \midrule
+    1 & 8 & 32 & \textbf{0.1942} \\
+    3 & 2 & 32 & \textbf{0.1576} \\
+    \bottomrule
+    \end{tabular}
+\end{table}
+
+As expected, increasing the number of shots provided the model with more context, which typically improves its performance. However, increasing the number of shots also resulted in higher memory consumption, so we had to find a balance that remained within our system's limits.
+
+Interestingly, the average BLEU score decreased when we merged several Excel rows into the input. While we expected more data to improve the model's performance, the increase in data duplication led us to reduce the number of shots. With only 2 examples presented to the model, the model lacked sufficient context to recover all the relevant details from the ground truth, which likely led to missing parts in the generated reports.
+    
 
 %----------------------------------------------------------------------------------------
 %	REFERENCE LIST
