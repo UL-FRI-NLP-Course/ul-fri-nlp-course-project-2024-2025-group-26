@@ -134,3 +134,7 @@ report/report.fdb_latexmk
 report/report.fls
 report/report.out
 report/report.synctex.gz
+Data/csv_data.json
+Data/PrometnoPorocilo_2024.csv
+Data/PrometnoPorocilo_2022.csv
+Data/PrometnoPorocilo_2023.csv
