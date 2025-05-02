@@ -132,9 +132,10 @@ The primary dataset was provided to us by the TA. It consists of three important
     \item \textbf{Ground truth data} in Rich Text Format (RTF) files, providing text in a ready-to-use format for radio hosts.
 \end{enumerate}
 
-% ToDo - verjetno nov subsetction "preprocessing"
-% We intend to normalize the data by enforcing standard naming conventions, filtering out irrelevant details,
-% and tagging urgent events (e.g., \textit{nujna prometna informacija}).
+
+\subsection*{Data preprocessing}
+The pipeline first loads the RTF files and extracts dates and times embedded in their content. It then selects the corresponding rows from the Excel file based on this timestamp information. From these selected rows, duplicate entries are removed, and the HTML content present in the columns is converted into plain text. The process further cleans the data by keeping only the relevant columns (namely A1, B1, C1, A2, B2, C2, ContentPomembnoSLO, ContentNesreceSLO, ContentZastojiSLO, ContentVremeSLO, ContentOvireSLO, ContentDeloNaCestiSLO, ContentOpozorilaSLO, ContentMednarodneInformacijeSLO, and ContentSplosnoSLO), which are then merged to form the input text for the model.
+
 
 \subsection*{Prompt Engineering}
 
