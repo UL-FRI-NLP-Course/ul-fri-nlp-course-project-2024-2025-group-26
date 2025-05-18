@@ -20,6 +20,7 @@
 %----------------------------------------------------------------------------------------
 \documentclass[fleqn,moreauthors,10pt]{ds_report}
 \usepackage[english]{babel}
+\usepackage{tabularx}
 
 \graphicspath{{fig/}}
 
@@ -184,7 +185,48 @@ The baseline results for few-shot prompting with GaMS-9B-Instruct \cite{huggingf
 As expected, increasing the number of shots provided the model with more context, which typically improves its performance. However, increasing the number of shots also resulted in higher memory consumption, so we had to find a balance that remained within our system's limits.
 
 Interestingly, the average BLEU score decreased when we merged several Excel rows into the input. While we expected more data to improve the model's performance, the increase in data duplication led us to reduce the number of shots. With only 2 examples presented to the model, the model lacked sufficient context to recover all the relevant details from the ground truth, which likely led to missing parts in the generated reports.
-    
+
+% ---------- 4.2 Qualitative Example / Error Analysis ----------
+\subsection{Qualitative Example / Error Analysis}
+\label{subsec:qualitative}
+
+To complement the quantitative BLEU scores reported in Table~\ref{tab:bleu-results}, we asked the GPT\mbox{-}o3 assistant to act as an external evaluator: it was shown one randomly selected test case from the same evaluation set and requested to assign an adequacy score on the 1–10 scale described earlier.
+
+
+\begin{table}[ht]
+\centering
+\footnotesize                    % text a bit smaller so it wraps nicely
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\linewidth}{@{}X@{}}
+\toprule
+\textbf{Ground-truth bulletin} \\  % <-- row 1 heading
+\midrule
+\textit{Podatki o prometu. Zaradi del so zastoji na regionalni cesti Vrhnika–Ljubljana pri avtocestnem priključku Brezovica v obe smeri. Na primorski avtocesti proti Kopru je zaradi razlitega goriva vozišče spolzko med Vrhniko in Logatcem. Na vipavski hitri cesti je zaradi pokvarjenega tovornjaka med predorom Podnanos in priključkom Vipava še vedno zaprt vozni pas proti Novi Gorici. Na mejnem prehodu Obrežje vozniki tovornih vozil na vstop v državo čakajo več kot 2 uri.} \\[0.8em] % small vertical gap
+\midrule
+
+\textbf{Model-generated bulletin} \\  % <-- row 2 heading
+\midrule
+\textit{Podatki o prometu. Na ljubljanski obvoznici je zastoj proti Primorski, ki sega do razcepa Kozarje. Čas potovanja se tam podaljša za približno četrt ure. Na cesti Maribor – Hoče je zastoj dolg 2 kilometra. Na regionalni cesti Vrhnika – Brezovica – Ljubljana je zastoj pred delovno zaporo pri Brezovici proti Podpeči. Na cesti Podpeč – Brezovica je zastoj od Podpeči proti Brezovici. Priporočamo obvoz po avtocesti med Vrhniko in Ljubljano, vendar le za vozila opremljena z vinjeto ali napravo DarsGo. Na dolenjski avtocesti je med predoroma Mali vrh in Debeli hrib oviran promet zaradi okvare vozila. Na mejnem prehodu Obrežje vozniki tovornih vozil na vstop v državo čakajo do 2 uri.} \\
+\bottomrule
+\end{tabularx}
+\caption{Illustrative example of expected versus generated traffic bulletin used in the OpenAI o3 adequacy evaluation.}
+\label{tab:qualitative}
+\end{table}
+
+\paragraph{o3 adequacy score.}  
+Using the 1–10 scale described in our annotation guidelines, this example received an \textbf{adequacy score of 4}.  The score reflects the following observations:
+
+\begin{itemize}
+  \item \textbf{Coverage:} Only one of the four critical events in the ground truth is reproduced; two are omitted entirely (slick lane Vrhnika–Logatec, lane closure Podnanos–Vipava) and one is partially correct (queues Vrhnika–Brezovica but only one direction).
+  \item \textbf{Hallucinations:} Five incidents not present in the ground-truth bulletin are introduced (e.g. Ljubljana ring, Maribor–Hoče, Podpeč queues).
+  \item \textbf{Detail accuracy:} Waiting time at Obrežje is understated (“do 2 uri” vs.\ “več kot 2 uri”), softening the severity.
+\end{itemize}
+
+\paragraph{Take-aways.}  
+This qualitative evidence clarifies why the BLEU score ($\approx$ 0.19) remains modest despite grammatical fluency: the model tends to \emph{omit} salient facts and \emph{invent} unrelated incidents, both of which automatic n-gram metrics penalise weakly.  
+
+% --------------------------------------------------------------
 
 %----------------------------------------------------------------------------------------
 %	REFERENCE LIST
