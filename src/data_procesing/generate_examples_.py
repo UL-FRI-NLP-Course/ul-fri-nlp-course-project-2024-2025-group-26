@@ -173,11 +173,13 @@ def create_structured_input_from_soup(
     
     final_paragraphs_map: Dict[str, List[str]] = {}
     for header, p_list in extracted_paragraphs_map.items():
-        if len(p_list) > 1:
-            unique_paragraphs, _ = deduplicate_sentences_sbert(p_list, sbert_model_instance)
-            final_paragraphs_map[header] = unique_paragraphs
-        else: # 0 or 1 paragraph, already unique or empty
-            final_paragraphs_map[header] = p_list
+        final_paragraphs_map[header] = p_list
+        
+        # if len(p_list) > 1:
+        #     unique_paragraphs, _ = deduplicate_sentences_sbert(p_list, sbert_model_instance)
+        #     final_paragraphs_map[header] = unique_paragraphs
+        # else: # 0 or 1 paragraph, already unique or empty
+        #     final_paragraphs_map[header] = p_list
             
     output_lines: List[str] = []
     for header_key in ordered_headers:
