@@ -13,7 +13,7 @@ from create_train_dev_test_split import get_split
 
 # --- Configuration Constants ---
 SBERT_MODEL_NAME: str = 'EMBEDDIA/sloberta'
-SIMILARITY_THRESHOLD: float = 0.90
+SIMILARITY_THRESHOLD: float = 0.97
 K_ROWS_BACK: int = 5  # Number of historical traffic reports to consider
 EXAMPLES_TO_PROCESS = 10  # Number of RTF examples to process
 
@@ -173,13 +173,12 @@ def create_structured_input_from_soup(
     
     final_paragraphs_map: Dict[str, List[str]] = {}
     for header, p_list in extracted_paragraphs_map.items():
-        final_paragraphs_map[header] = p_list
-        
-        # if len(p_list) > 1:
-        #     unique_paragraphs, _ = deduplicate_sentences_sbert(p_list, sbert_model_instance)
-        #     final_paragraphs_map[header] = unique_paragraphs
-        # else: # 0 or 1 paragraph, already unique or empty
-        #     final_paragraphs_map[header] = p_list
+        if len(p_list) > 1:
+            p_list = list(set(p_list))
+            #unique_paragraphs, _ = deduplicate_sentences_sbert(p_list, sbert_model_instance)
+            final_paragraphs_map[header] = p_list
+        else: # 0 or 1 paragraph, already unique or empty
+            final_paragraphs_map[header] = p_list
             
     output_lines: List[str] = []
     for header_key in ordered_headers:
