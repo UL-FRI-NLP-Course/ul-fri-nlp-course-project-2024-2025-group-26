@@ -14,8 +14,8 @@ from create_train_dev_test_split import get_split
 # --- Configuration Constants ---
 SBERT_MODEL_NAME: str = 'EMBEDDIA/sloberta'
 SIMILARITY_THRESHOLD: float = 0.99
-K_ROWS_BACK: int = 1000  # Number of historical traffic reports to consider
-EXAMPLES_TO_PROCESS = 3  # Number of RTF examples to process
+K_ROWS_BACK: int = 5  # Number of historical traffic reports to consider
+EXAMPLES_TO_PROCESS = 1000  # Number of RTF examples to process
 
 # File Paths
 RTF_DATA_PATH: str = r".\Data\rtf_data.json"
