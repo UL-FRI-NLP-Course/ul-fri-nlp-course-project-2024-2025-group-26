@@ -32,7 +32,8 @@ def load_porocilo(path: str) -> pl.LazyFrame: # Return LazyFrame
     
 
 
-def deduplicate_using_SloVo(sentances:list[str], model_name:str = 'paraphrase-multilingual-MiniLM-L12-v2', similarity_threshold:float = 0.90) -> tuple[list[str], list[str]]: # Returns tuple
+model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+def deduplicate_using_SloVo(sentances:list[str], similarity_threshold:float = 0.90) -> tuple[list[str], list[str]]: # Returns tuple
     if not sentances:
         return [], []
 
@@ -40,7 +41,6 @@ def deduplicate_using_SloVo(sentances:list[str], model_name:str = 'paraphrase-mu
     if not processed_sentances:
         return [], []
 
-    model = SentenceTransformer(model_name)
     embeddings = model.encode(processed_sentances, convert_to_tensor=False, show_progress_bar=False)
 
     unique_indices = []
@@ -68,9 +68,9 @@ def deduplicate_using_SloVo(sentances:list[str], model_name:str = 'paraphrase-mu
                 
     return unique_sents, removed_sents
     
-    
+useles_sentences =  set([".", " ", "", "\n", "\r\n", "\r", ". ", " .", " . "])   
 def create_input(csv_documents: dict[str, list[BeautifulSoup]]) -> str: # Corrected type hint
-    headers = ['A1','ContentPomembnoSLO', 'ContentNesreceSLO', 'ContentZastojiSLO',
+    headers = ['A1','B1','ContentPomembnoSLO', 'ContentNesreceSLO', 'ContentZastojiSLO',
         'ContentVremeSLO', 'ContentOvireSLO', 'ContentDeloNaCestiSLO', 'ContentOpozorilaSLO',
         'ContentMednarodneInformacijeSLO', 'ContentSplosnoSLO']
     
@@ -85,7 +85,8 @@ def create_input(csv_documents: dict[str, list[BeautifulSoup]]) -> str: # Correc
                             paragraphs[header].add(p_tag.get_text(strip=False))
                     
     for header, p_set in paragraphs.items():
-        if len(list(p_set)) > 0: 
+        if len(list(p_set)) > 0:
+            p_set - useles_sentences
             unique_paragraphs, _ = deduplicate_using_SloVo(list(p_set)) 
             paragraphs[header] = unique_paragraphs 
         else:
@@ -96,8 +97,7 @@ def create_input(csv_documents: dict[str, list[BeautifulSoup]]) -> str: # Correc
         if len(p_list) > 0:
             output_lines.append("#" + header.removeprefix("Content").removesuffix("SLO"))
             for p in p_list:
-                if p not in [".", " ", "", "\n", "\r\n", "\r", ". ", " .", " . "]:
-                    output_lines.append(p)
+                output_lines.append(p)
     return "\n".join(output_lines)   
 
 def get_bs_dict(df:pl.DataFrame) -> dict[str, list[BeautifulSoup]]: # df is an eager DataFrame
@@ -152,7 +152,8 @@ if __name__ == "__main__":
     prometna_porocila_lazy = pl.concat(
         [pp2022_lazy, pp2023_lazy, pp2024_lazy], 
         how="vertical_relaxed" 
-    )
+    ).sort('Datum', descending=True)
+    
     
     rtf_path = r".\Data\rtf_data.json"
     train, dev, test = get_split(rtf_path)
@@ -169,8 +170,6 @@ if __name__ == "__main__":
         
         reports_lazy = prometna_porocila_lazy.filter(
             pl.col('Datum') <= date
-        ).sort(
-            'Datum', descending=True
         ).head(k_rows_back + 1)
         
         
