@@ -13,9 +13,9 @@ from create_train_dev_test_split import get_split
 
 # --- Configuration Constants ---
 SBERT_MODEL_NAME: str = 'EMBEDDIA/sloberta'
-SIMILARITY_THRESHOLD: float = 0.97
-K_ROWS_BACK: int = 5  # Number of historical traffic reports to consider
-EXAMPLES_TO_PROCESS = 10  # Number of RTF examples to process
+SIMILARITY_THRESHOLD: float = 0.99
+K_ROWS_BACK: int = 1000  # Number of historical traffic reports to consider
+EXAMPLES_TO_PROCESS = 3  # Number of RTF examples to process
 
 # File Paths
 RTF_DATA_PATH: str = r".\Data\rtf_data.json"
@@ -24,7 +24,7 @@ PROMETNO_POROCILO_PATHS: List[str] = [
     r".\Data\PrometnoPorocilo_2023.csv",
     r".\Data\PrometnoPorocilo_2024.csv"
 ]
-OUTPUT_FILENAME: str = r".\Data\examples_5_vrstic_brez.json"
+OUTPUT_FILENAME: str = f".\\Data\\examples_{K_ROWS_BACK}_vrstic_{SBERT_MODEL_NAME.split('/')[1]}{int(SIMILARITY_THRESHOLD*100)}_for_finetune.json"
 
 # Column Names
 # Columns to select from traffic reports and also used as keys for HTML content
@@ -175,8 +175,8 @@ def create_structured_input_from_soup(
     for header, p_list in extracted_paragraphs_map.items():
         if len(p_list) > 1:
             p_list = list(set(p_list))
-            #unique_paragraphs, _ = deduplicate_sentences_sbert(p_list, sbert_model_instance)
-            final_paragraphs_map[header] = p_list
+            unique_paragraphs, _ = deduplicate_sentences_sbert(p_list, sbert_model_instance)
+            final_paragraphs_map[header] = unique_paragraphs
         else: # 0 or 1 paragraph, already unique or empty
             final_paragraphs_map[header] = p_list
             
@@ -213,7 +213,7 @@ def process_data():
         return
         
     # Process a subset or all of the RTF data
-    rtf_df = pl.DataFrame(train_data).head(EXAMPLES_TO_PROCESS)
+    rtf_df = pl.DataFrame(train_data).slice(100,EXAMPLES_TO_PROCESS)
     
     rtf_df = rtf_df.with_columns(
         pl.col('date').str.strptime(pl.Datetime, format="%Y-%m-%dT%H:%M:%S", strict=False)
