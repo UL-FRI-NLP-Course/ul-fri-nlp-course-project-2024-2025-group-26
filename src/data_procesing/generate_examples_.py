@@ -6,18 +6,16 @@ from bs4 import BeautifulSoup
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import json
-import cProfile
-import pstats
-from pstats import SortKey
 from typing import List, Dict, Tuple, Optional
 
 # Assuming create_train_dev_test_split.py contains get_split function
 from create_train_dev_test_split import get_split
 
 # --- Configuration Constants ---
-SBERT_MODEL_NAME: str = 'paraphrase-multilingual-MiniLM-L12-v2'
+SBERT_MODEL_NAME: str = 'EMBEDDIA/sloberta'
 SIMILARITY_THRESHOLD: float = 0.90
 K_ROWS_BACK: int = 5  # Number of historical traffic reports to consider
+EXAMPLES_TO_PROCESS = 10  # Number of RTF examples to process
 
 # File Paths
 RTF_DATA_PATH: str = r".\Data\rtf_data.json"
@@ -26,11 +24,11 @@ PROMETNO_POROCILO_PATHS: List[str] = [
     r".\Data\PrometnoPorocilo_2023.csv",
     r".\Data\PrometnoPorocilo_2024.csv"
 ]
-OUTPUT_FILENAME: str = r".\Data\examples_refactored_output.json"
+OUTPUT_FILENAME: str = r".\Data\examples_5_vrstic_brez.json"
 
 # Column Names
 # Columns to select from traffic reports and also used as keys for HTML content
-HTML_PROCESSING_COLUMNS: List[str] = [
+HTML_PROCESSING_COLUMNS: List[str] = ['LegacyId',
     'A1', 'ContentPomembnoSLO', 'ContentNesreceSLO', 'ContentZastojiSLO',
     'ContentVremeSLO', 'ContentOvireSLO', 'ContentDeloNaCestiSLO', 'ContentOpozorilaSLO',
     'ContentMednarodneInformacijeSLO', 'ContentSplosnoSLO'
@@ -44,11 +42,10 @@ NULL_VALUES_FOR_CSV: List[str] = ["", "NULL", "NaN", "N/A", "NA", "null", "nan",
 
 # Text Processing
 # Simple, exact strings to ignore after stripping whitespace from paragraphs
-STRINGS_TO_IGNORE_IN_PARAGRAPHS: set[str] = {".", ""}
+STRINGS_TO_IGNORE_IN_PARAGRAPHS: set[str] = {".", "!", ""}
 
 
 # --- Global Model Initialization ---
-# Load the SBERT model once globally to avoid reloading in loops
 try:
     sbert_model: Optional[SentenceTransformer] = SentenceTransformer(SBERT_MODEL_NAME)
     print(f"SentenceTransformer model '{SBERT_MODEL_NAME}' loaded successfully.")
@@ -58,17 +55,23 @@ except Exception as e:
 
 # --- Helper Functions ---
 
-def load_traffic_report_csv(path: str) -> pl.LazyFrame:
-    """Loads a traffic report CSV file into a Polars LazyFrame."""
-    return pl.scan_csv(
+def load_traffic_report_csv(path: str) -> pl.DataFrame:
+    """Loads a traffic report CSV file into a Polars DataFrame."""
+    df = pl.read_csv(
         path,
         has_header=True,
         separator=";",
         encoding="utf8",
         null_values=NULL_VALUES_FOR_CSV,
-        try_parse_dates=True,
+        # try_parse_dates=True, # We will parse manually for robustness
         ignore_errors=False
-    ).select(['Datum'] + HTML_PROCESSING_COLUMNS)
+    )
+    
+    df = df.with_columns(
+        pl.col("Datum").str.strptime(pl.Datetime, format="%d/%m/%Y %H:%M", strict=False).alias("Datum")
+    )
+    return df.select(['Datum'] + HTML_PROCESSING_COLUMNS)
+
 
 
 def deduplicate_sentences_sbert(
@@ -125,7 +128,6 @@ def parse_html_columns_to_soup(
     Cleans <a>, <strong>, and <u> tags.
     """
     soup_documents: Dict[str, List[Optional[BeautifulSoup]]] = {col: [] for col in columns_to_parse}
-    print(f"Parsing HTML for {eager_df.height} rows across {len(columns_to_parse)} columns.")
 
     
     for col_name in columns_to_parse:
@@ -198,9 +200,9 @@ def process_data():
         return
 
     # Load and combine traffic reports
-    lazy_frames = [load_traffic_report_csv(path) for path in PROMETNO_POROCILO_PATHS]
-    all_traffic_reports_lazy = pl.concat(
-        lazy_frames, how="vertical_relaxed"
+    data_frames = [load_traffic_report_csv(path) for path in PROMETNO_POROCILO_PATHS]
+    all_traffic_reports = pl.concat(
+        data_frames, how="vertical_relaxed"
     ).sort('Datum', descending=True)
     
     try:
@@ -210,36 +212,37 @@ def process_data():
         return
         
     # Process a subset or all of the RTF data
-    rtf_df = pl.DataFrame(train_data).head(3) # For testing: process first 3 entries
-    # rtf_df = pl.DataFrame(train_data) # To process all training data
+    rtf_df = pl.DataFrame(train_data).head(EXAMPLES_TO_PROCESS)
     
     rtf_df = rtf_df.with_columns(
         pl.col('date').str.strptime(pl.Datetime, format="%Y-%m-%dT%H:%M:%S", strict=False)
     )
     
     results: List[Dict[str, str]] = []
+
     for row_index, rtf_row in enumerate(rtf_df.iter_rows(named=True)):
         current_date = rtf_row['date']
-        print(f"Processing RTF entry {row_index + 1}/{rtf_df.height} (Date: {current_date})")
+        print(f"Processing RTF example {len(results)}/{EXAMPLES_TO_PROCESS}, from {current_date}", end = "\r")
+
         
-        relevant_reports_lazy = all_traffic_reports_lazy.filter(
-            pl.col('Datum') <= current_date
+        reports_filtered = all_traffic_reports.filter(
+            pl.col('Datum') <= current_date + pl.duration(minutes=1)
         ).head(K_ROWS_BACK + 1)
         
-        reports_eager = relevant_reports_lazy.collect()
-        print(f"  Collected {reports_eager.height} historical traffic reports.")
         
         input_text = ""
-        if reports_eager.height > 0:
-            bs_docs = parse_html_columns_to_soup(reports_eager, HTML_PROCESSING_COLUMNS)
+        if reports_filtered.height > 0:
+            bs_docs = parse_html_columns_to_soup(reports_filtered, HTML_PROCESSING_COLUMNS)
             input_text = create_structured_input_from_soup(bs_docs, sbert_model, FINAL_INPUT_HEADERS)
+            input_text = current_date.strftime("%d.%m.%Y %H:%M") + "\n" + input_text
         else:
             print(f"  No traffic reports found up to date {current_date}.")
-            
         
             
-        results.append({"Input": input_text, "GroundTruth": rtf_row['markdown'], "Date": str(current_date), "AllReportsFromCSV": reports_eager.write_csv()})
-            
+        #results.append({"Input": input_text, "GroundTruth": rtf_row['markdown'], "Date": str(current_date), "AllReportsFromCSV": reports_filtered.write_csv()})
+        results.append({"Input": input_text, "GroundTruth": rtf_row['markdown'], "Date": str(current_date)})
+    
+    print(f"Processing RTF example {len(results)}/{EXAMPLES_TO_PROCESS}, from {current_date}")   
     # Save the results
     try:
         with open(OUTPUT_FILENAME, "w", encoding="utf-8") as f:
@@ -251,12 +254,4 @@ def process_data():
 # --- Script Entry Point ---
 
 if __name__ == "__main__":
-    profiler = cProfile.Profile()
-    profiler.enable()
-
     process_data()
-
-    profiler.disable()
-    stats = pstats.Stats(profiler).sort_stats(SortKey.CUMULATIVE)
-    print("\n--- Profiling Stats (Top 20) ---")
-    stats.print_stats(20)
