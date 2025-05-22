@@ -5,194 +5,258 @@ import polars as pl
 from bs4 import BeautifulSoup
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
 import json
-from create_train_dev_test_split import get_split
 import cProfile
 import pstats
 from pstats import SortKey
+from typing import List, Dict, Tuple, Optional
+
+# Assuming create_train_dev_test_split.py contains get_split function
+from create_train_dev_test_split import get_split
+
+# --- Configuration Constants ---
+SBERT_MODEL_NAME: str = 'paraphrase-multilingual-MiniLM-L12-v2'
+SIMILARITY_THRESHOLD: float = 0.90
+K_ROWS_BACK: int = 5  # Number of historical traffic reports to consider
+
+# File Paths
+RTF_DATA_PATH: str = r".\Data\rtf_data.json"
+PROMETNO_POROCILO_PATHS: List[str] = [
+    r".\Data\PrometnoPorocilo_2022.csv",
+    r".\Data\PrometnoPorocilo_2023.csv",
+    r".\Data\PrometnoPorocilo_2024.csv"
+]
+OUTPUT_FILENAME: str = r".\Data\examples_refactored_output.json"
+
+# Column Names
+# Columns to select from traffic reports and also used as keys for HTML content
+HTML_PROCESSING_COLUMNS: List[str] = [
+    'A1', 'ContentPomembnoSLO', 'ContentNesreceSLO', 'ContentZastojiSLO',
+    'ContentVremeSLO', 'ContentOvireSLO', 'ContentDeloNaCestiSLO', 'ContentOpozorilaSLO',
+    'ContentMednarodneInformacijeSLO', 'ContentSplosnoSLO'
+]
+# Headers for the final formatted input, maintaining order
+# Typically the same as HTML_PROCESSING_COLUMNS or a subset/reordered version
+FINAL_INPUT_HEADERS: List[str] = HTML_PROCESSING_COLUMNS[:]
+
+# CSV Parsing Options
+NULL_VALUES_FOR_CSV: List[str] = ["", "NULL", "NaN", "N/A", "NA", "null", "nan", "null"]
+
+# Text Processing
+# Simple, exact strings to ignore after stripping whitespace from paragraphs
+STRINGS_TO_IGNORE_IN_PARAGRAPHS: set[str] = {".", ""}
 
 
+# --- Global Model Initialization ---
+# Load the SBERT model once globally to avoid reloading in loops
+try:
+    sbert_model: Optional[SentenceTransformer] = SentenceTransformer(SBERT_MODEL_NAME)
+    print(f"SentenceTransformer model '{SBERT_MODEL_NAME}' loaded successfully.")
+except Exception as e:
+    print(f"Error loading SentenceTransformer model '{SBERT_MODEL_NAME}': {e}")
+    sbert_model = None
 
+# --- Helper Functions ---
 
-def load_porocilo(path: str) -> pl.LazyFrame: # Return LazyFrame
+def load_traffic_report_csv(path: str) -> pl.LazyFrame:
+    """Loads a traffic report CSV file into a Polars LazyFrame."""
     return pl.scan_csv(
         path,
         has_header=True,
         separator=";",
         encoding="utf8",
-        null_values=["", "NULL", "NaN", "N/A", "NA", "null", "nan", "null"],
+        null_values=NULL_VALUES_FOR_CSV,
         try_parse_dates=True,
         ignore_errors=False
-    ).select([
-        'Datum', 'A1', 'B1', 'ContentPomembnoSLO', 'ContentNesreceSLO', 'ContentZastojiSLO',
-        'ContentVremeSLO', 'ContentOvireSLO', 'ContentDeloNaCestiSLO', 'ContentOpozorilaSLO',
-        'ContentMednarodneInformacijeSLO', 'ContentSplosnoSLO'
-    ]) # Removed .collect()
-    
+    ).select(['Datum'] + HTML_PROCESSING_COLUMNS)
 
 
-model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
-def deduplicate_using_SloVo(sentances:list[str], similarity_threshold:float = 0.90) -> tuple[list[str], list[str]]: # Returns tuple
-    if not sentances:
+def deduplicate_sentences_sbert(
+    sentences: List[str],
+    model: Optional[SentenceTransformer],
+    threshold: float = SIMILARITY_THRESHOLD
+) -> Tuple[List[str], List[str]]:
+    """
+    Deduplicates a list of sentences based on semantic similarity using SBERT.
+    Returns a tuple of (unique_sentences, removed_sentences).
+    """
+    if not sentences:
         return [], []
 
-    processed_sentances = [s for s in sentances if isinstance(s, str) and s.strip()]
-    if not processed_sentances:
+    processed_sentences = [s for s in sentences if isinstance(s, str) and s.strip()]
+    if not processed_sentences:
         return [], []
+    if len(processed_sentences) == 1:
+        return processed_sentences, []
 
-    embeddings = model.encode(processed_sentances, convert_to_tensor=False, show_progress_bar=False)
+    if model is None:
+        print("Warning: SBERT model not available. Skipping deduplication, returning all processed sentences.")
+        return processed_sentences, []
 
-    unique_indices = []
-    duplicate_indices = [] # To store indices of removed sentences
-    is_duplicate = [False] * len(processed_sentances)
+    embeddings = model.encode(processed_sentences, convert_to_tensor=False, show_progress_bar=False)
 
-    for i in range(len(processed_sentances)):
+    unique_indices: List[int] = []
+    removed_indices: List[int] = []
+    is_duplicate: List[bool] = [False] * len(processed_sentences)
+
+    for i in range(len(processed_sentences)):
         if is_duplicate[i]:
-            duplicate_indices.append(i) # Mark as duplicate
+            removed_indices.append(i)
             continue
-
-        unique_indices.append(i) 
-
-        for j in range(i + 1, len(processed_sentances)):
+        unique_indices.append(i)
+        for j in range(i + 1, len(processed_sentences)):
             if is_duplicate[j]:
                 continue
-            
             sim = cosine_similarity(embeddings[i].reshape(1, -1), embeddings[j].reshape(1, -1))[0][0]
-
-            if sim > similarity_threshold:
+            if sim > threshold:
                 is_duplicate[j] = True
                 
-    unique_sents = [processed_sentances[i] for i in unique_indices]
-    removed_sents = [processed_sentances[i] for i in duplicate_indices] # Collect removed sentences
-                
+    unique_sents = [processed_sentences[i] for i in unique_indices]
+    removed_sents = [processed_sentences[i] for i in removed_indices]
     return unique_sents, removed_sents
-    
-useles_sentences =  set([".", " ", "", "\n", "\r\n", "\r", ". ", " .", " . "])   
-def create_input(csv_documents: dict[str, list[BeautifulSoup]]) -> str: # Corrected type hint
-    headers = ['A1','B1','ContentPomembnoSLO', 'ContentNesreceSLO', 'ContentZastojiSLO',
-        'ContentVremeSLO', 'ContentOvireSLO', 'ContentDeloNaCestiSLO', 'ContentOpozorilaSLO',
-        'ContentMednarodneInformacijeSLO', 'ContentSplosnoSLO']
-    
-    paragraphs = {header : set() for header in headers}
-    
-    if csv_documents: # Ensure csv_documents is not None and is a dict
-        for header, soup_list in csv_documents.items():
-            if soup_list: # Ensure soup_list is not None
-                for soup in soup_list:
-                    if soup:
-                        for p_tag in soup.find_all('p'):
-                            paragraphs[header].add(p_tag.get_text(strip=False))
-                    
-    for header, p_set in paragraphs.items():
-        if len(list(p_set)) > 0:
-            p_set - useles_sentences
-            unique_paragraphs, _ = deduplicate_using_SloVo(list(p_set)) 
-            paragraphs[header] = unique_paragraphs 
-        else:
-            paragraphs[header] = [] 
-        
-    output_lines = []
-    for header, p_list in paragraphs.items(): 
-        if len(p_list) > 0:
-            output_lines.append("#" + header.removeprefix("Content").removesuffix("SLO"))
-            for p in p_list:
-                output_lines.append(p)
-    return "\n".join(output_lines)   
 
-def get_bs_dict(df:pl.DataFrame) -> dict[str, list[BeautifulSoup]]: # df is an eager DataFrame
-    
-    string_cols = ['A1', 'ContentPomembnoSLO','ContentNesreceSLO', 'ContentZastojiSLO', 'ContentVremeSLO', 'ContentOvireSLO', 'ContentDeloNaCestiSLO', 'ContentOpozorilaSLO','ContentMednarodneInformacijeSLO', 'ContentSplosnoSLO'
-    ]
-    
-    print(f"Parsing {df.height} rows and {len(string_cols)} columns for HTML content")
-    
-    soup_documents:dict[str,list[BeautifulSoup]] = {}
 
-    for col in string_cols:
-        soup_documents[col] = []
-        if col in df.columns: # Check if column exists in the dataframe
-            for cell in df[col]: # Iterate over the passed DataFrame 'df'
-                if cell is not None:
-                    # Ensure cell is a string before passing to BeautifulSoup
-                    soup = BeautifulSoup(str(cell), "html.parser") 
-                    soup_documents[col].append(soup)
+def parse_html_columns_to_soup(
+    eager_df: pl.DataFrame,
+    columns_to_parse: List[str]
+) -> Dict[str, List[Optional[BeautifulSoup]]]:
+    """
+    Parses HTML content from specified columns of an eager Polars DataFrame.
+    Cleans <a>, <strong>, and <u> tags.
+    """
+    soup_documents: Dict[str, List[Optional[BeautifulSoup]]] = {col: [] for col in columns_to_parse}
+    print(f"Parsing HTML for {eager_df.height} rows across {len(columns_to_parse)} columns.")
+
+    
+    for col_name in columns_to_parse:
+        if col_name in eager_df.columns:
+            for cell_content in eager_df[col_name]:
+                if cell_content is not None and isinstance(cell_content, str):
+                    soup = BeautifulSoup(cell_content, "html.parser")
+                    for tag_type, action in [('a', 'decompose'), ('strong', 'unwrap'), ('u', 'unwrap')]:
+                        for tag in soup.find_all(tag_type):
+                            getattr(tag, action)()
+                    soup_documents[col_name].append(soup)
                 else:
-                    soup_documents[col].append(None)
+                    soup_documents[col_name].append(None)
         else:
-            # Handle case where a column might be missing in the filtered df
-            # Or ensure all selected columns in load_porocilo are always present
-            print(f"Warning: Column {col} not found in DataFrame for HTML parsing.")
-
-
-    for col, soup_list in soup_documents.items():
-        for i, soup in enumerate(soup_list):
-            if soup:
-                for a_tag in soup.find_all('a'):
-                    a_tag.decompose()
-                for strong_tag in soup.find_all('strong'):
-                    strong_tag.unwrap() # unwrap is generally preferred over replace_with get_text
-                for u_tag in soup.find_all('u'):
-                    u_tag.unwrap() # unwrap is generally preferred
-                    
+            print(f"Warning: Column '{col_name}' not found in DataFrame for HTML parsing.")
+            soup_documents[col_name] = [None] * eager_df.height # Maintain structure         
+    
     return soup_documents
 
+
+def create_structured_input_from_soup(
+    html_docs_by_column: Dict[str, List[Optional[BeautifulSoup]]],
+    sbert_model_instance: Optional[SentenceTransformer],
+    ordered_headers: List[str]
+) -> str:
+    """
+    Creates a structured text input from parsed HTML documents.
+    Extracts paragraphs, deduplicates them, and formats with headers in specified order.
+    """
+    extracted_paragraphs_map: Dict[str, List[str]] = {header: [] for header in ordered_headers}
+
+    for header, soup_list in html_docs_by_column.items():
+        if header not in ordered_headers: # Process only relevant headers
+            continue
+        if soup_list:
+            for soup in soup_list:
+                if soup:
+                    for p_tag in soup.find_all('p'):
+                        # Use separator=" " to ensure spaces between text from different inner tags
+                        text = p_tag.get_text(separator=" ", strip=True) 
+                        if text and text not in STRINGS_TO_IGNORE_IN_PARAGRAPHS:
+                            extracted_paragraphs_map[header].append(text)
+    
+    final_paragraphs_map: Dict[str, List[str]] = {}
+    for header, p_list in extracted_paragraphs_map.items():
+        if len(p_list) > 1:
+            unique_paragraphs, _ = deduplicate_sentences_sbert(p_list, sbert_model_instance)
+            final_paragraphs_map[header] = unique_paragraphs
+        else: # 0 or 1 paragraph, already unique or empty
+            final_paragraphs_map[header] = p_list
+            
+    output_lines: List[str] = []
+    for header_key in ordered_headers:
+        p_list_final = final_paragraphs_map.get(header_key, [])
+        if p_list_final:
+            display_header = header_key.removeprefix("Content").removesuffix("SLO")
+            # Keep A1, B1 as is, otherwise use the cleaned name
+            display_header = header_key if header_key in ["A1", "B1"] else display_header
+            output_lines.append(f"#{display_header}")
+            output_lines.extend(p_list_final)
+            
+    return "\n".join(output_lines)
+
+# --- Main Execution Logic ---
+
+def process_data():
+    """Main script execution flow."""
+    if sbert_model is None:
+        print("SBERT model could not be loaded. Aborting processing.")
+        return
+
+    # Load and combine traffic reports
+    lazy_frames = [load_traffic_report_csv(path) for path in PROMETNO_POROCILO_PATHS]
+    all_traffic_reports_lazy = pl.concat(
+        lazy_frames, how="vertical_relaxed"
+    ).sort('Datum', descending=True)
+    
+    try:
+        train_data, _, _ = get_split(RTF_DATA_PATH) # Assuming dev and test are not used here
+    except Exception as e:
+        print(f"Error loading or splitting RTF data from '{RTF_DATA_PATH}': {e}")
+        return
+        
+    # Process a subset or all of the RTF data
+    rtf_df = pl.DataFrame(train_data).head(3) # For testing: process first 3 entries
+    # rtf_df = pl.DataFrame(train_data) # To process all training data
+    
+    rtf_df = rtf_df.with_columns(
+        pl.col('date').str.strptime(pl.Datetime, format="%Y-%m-%dT%H:%M:%S", strict=False)
+    )
+    
+    results: List[Dict[str, str]] = []
+    for row_index, rtf_row in enumerate(rtf_df.iter_rows(named=True)):
+        current_date = rtf_row['date']
+        print(f"Processing RTF entry {row_index + 1}/{rtf_df.height} (Date: {current_date})")
+        
+        relevant_reports_lazy = all_traffic_reports_lazy.filter(
+            pl.col('Datum') <= current_date
+        ).head(K_ROWS_BACK + 1)
+        
+        reports_eager = relevant_reports_lazy.collect()
+        print(f"  Collected {reports_eager.height} historical traffic reports.")
+        
+        input_text = ""
+        if reports_eager.height > 0:
+            bs_docs = parse_html_columns_to_soup(reports_eager, HTML_PROCESSING_COLUMNS)
+            input_text = create_structured_input_from_soup(bs_docs, sbert_model, FINAL_INPUT_HEADERS)
+        else:
+            print(f"  No traffic reports found up to date {current_date}.")
+            
+        
+            
+        results.append({"Input": input_text, "GroundTruth": rtf_row['markdown'], "Date": str(current_date), "AllReportsFromCSV": reports_eager.write_csv()})
+            
+    # Save the results
+    try:
+        with open(OUTPUT_FILENAME, "w", encoding="utf-8") as f:
+            json.dump(results, f, ensure_ascii=False, indent=4)
+        print(f"Processing complete. Output saved to {OUTPUT_FILENAME}")
+    except IOError as e:
+        print(f"Error saving results to '{OUTPUT_FILENAME}': {e}")
+
+# --- Script Entry Point ---
 
 if __name__ == "__main__":
     profiler = cProfile.Profile()
     profiler.enable()
-    
-    # Load data lazily
-    pp2022_lazy = load_porocilo(r".\Data\PrometnoPorocilo_2022.csv")
-    pp2023_lazy = load_porocilo(r".\Data\PrometnoPorocilo_2023.csv")
-    pp2024_lazy = load_porocilo(r".\Data\PrometnoPorocilo_2024.csv")
 
-    # Combine lazy frames
-    # Use how="vertical_relaxed" if schemas might slightly differ, or "vertical" if identical
-    prometna_porocila_lazy = pl.concat(
-        [pp2022_lazy, pp2023_lazy, pp2024_lazy], 
-        how="vertical_relaxed" 
-    ).sort('Datum', descending=True)
-    
-    
-    rtf_path = r".\Data\rtf_data.json"
-    train, dev, test = get_split(rtf_path)
-    
-    # Using a small subset for rtf_data as in original code
-    rtf_data = pl.DataFrame(train).head(3) 
-    rtf_data = rtf_data.with_columns(pl.col('date').str.strptime(pl.Datetime, format="%Y-%m-%dT%H:%M:%S"))
-    
-    k_rows_back = 5
-    res = []
-    for row_index, row in enumerate(rtf_data.iter_rows(named=True)): # Added index for logging
-        print(f"Processing RTF entry {row_index + 1}/{rtf_data.height} with date: {row['date']}")
-        date = row['date']
-        
-        reports_lazy = prometna_porocila_lazy.filter(
-            pl.col('Datum') <= date
-        ).head(k_rows_back + 1)
-        
-        
-        # Collect only the required subset of data
-        print(f"Collecting filtered traffic reports for date {date}...")
-        reports_eager = reports_lazy.collect() 
-        print(f"Collected {reports_eager.height} traffic reports.")
-        
-        if reports_eager.height > 0:
-            bs_dict = get_bs_dict(reports_eager) 
-            input_text = create_input(bs_dict) # Renamed variable
-            
-            res.append({"Input": input_text, "GroundTruth": row['markdown']})
-        else:
-            print(f"No traffic reports found for date {date} in the specified range.")
-            
-    # Save the results to a JSON file
-    output_filename = r".\Data\examples_3vrstive_brez.json" # Using a distinct name
-    with open(output_filename, "w", encoding="utf-8") as f:
-        json.dump(res, f, ensure_ascii=False, indent=4)
-          
-    print(f"Processing complete. Output saved to {output_filename}")
-    
+    process_data()
+
+    profiler.disable()
     stats = pstats.Stats(profiler).sort_stats(SortKey.CUMULATIVE)
-    stats.print_stats(20) # Print top 20 functions by cumulative time
-    
+    print("\n--- Profiling Stats (Top 20) ---")
+    stats.print_stats(20)
