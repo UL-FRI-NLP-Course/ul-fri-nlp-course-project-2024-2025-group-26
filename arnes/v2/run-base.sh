@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --partition=gpu
-#SBATCH --time=00:30:00
+#SBATCH --time=01:00:00
 #SBATCH --job-name="gams-base"
 #SBATCH --output=logs/base-%J.out
 #SBATCH --error=logs/base-%J.err
