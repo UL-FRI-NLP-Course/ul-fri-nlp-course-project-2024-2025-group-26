@@ -11,18 +11,22 @@
 
 # Uncomment the following line to exclude a problematic node
 # from the list of potential nodes for your job
-# #SBATCH --exclude=gwn04,gwn06             # Exclude problematic nodes from scheduling
+#SBATCH --exclude=gwn04,gwn06             # Exclude problematic nodes from scheduling
 
 # Display the hostname and GPU info
 echo "🧠 GPU info on node $HOSTNAME"
 nvidia-smi
 
-CASE="examples_5_vrstic_sloberta90.json"
+# CASE="examples_5_vrstic_sloberta90.json"
 # CASE="examples_5_vrstic_sloberta95.json"
 # CASE="examples_5_vrstic_sloberta99.json"
 # CASE="examples_10_vrstic_sloberta90.json"
-# CASE="examples_10_vrstic_sloberta95.json"
+CASE="examples_10_vrstic_sloberta95.json"
 # CASE="examples_10_vrstic_sloberta99.json"
+
+FEW_SHOT_COUNT=2
+
+echo "Running inference on $CASE"
 
 singularity exec --nv \
   --overlay overlay-workdir \
@@ -34,5 +38,5 @@ singularity exec --nv \
     python scripts/inference.py \
       --mode finetuned \
       --input_file /data/$CASE \
-      --output_file /outputs/finetuned_results_$CASE
+      --output_file /outputs/{$FEW_SHOT_COUNT}_finetuned_results_$CASE
 "
