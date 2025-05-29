@@ -29,7 +29,10 @@ def load_pipeline(mode: str):
 
         adapter_path = os.getenv("ADAPTER_PATH", "/models/finetuned")
         model = PeftModel.from_pretrained(base_model, adapter_path)
+        # Merge the adapters into the base model
         merged_model = model.merge_and_unload()
+        # Set model to eval mode
+        merged_model.eval()
 
         return pipeline(
             "text-generation",
@@ -48,6 +51,7 @@ def main():
     parser.add_argument("--mode", choices=["base", "finetuned"], required=True)
     parser.add_argument("--input_file", required=True)
     parser.add_argument("--output_file", required=True)
+    parser.add_argument("--few_shot_count", default="2", required=False, type=int)
     args = parser.parse_args()
 
     # === Load the model pipeline ===
@@ -57,7 +61,7 @@ def main():
     with open(args.input_file, "r", encoding="utf-8") as f:
         examples = json.load(f)
 
-    few_shot_count = 2
+    few_shot_count = args.few_shot_count
     num_trials = 32
 
     if len(examples) < few_shot_count + 1:
@@ -75,13 +79,31 @@ def main():
         few_shot_examples = selected_examples[:-1]
         test_example = selected_examples[-1]
 
-        # Build the prompt from few-shot examples and test input
-        prompt_parts = [
-            f"Vhod:\n{ex['Input']}\nIzhod:\n{ex['GroundTruth']}\n"
-            for ex in few_shot_examples
-        ]
-        prompt_parts.append(f"Vhod:\n{test_example['Input']}\nIzhod:\n")
-        full_prompt = "\n".join(prompt_parts)
+        if args.mode == "base":
+            # Build the prompt from few-shot examples and test input
+            prompt_parts = [
+                f"Vhod:\n{ex['Input']}\nIzhod:\n{ex['GroundTruth']}\n"
+                for ex in few_shot_examples
+            ]
+            prompt_parts.append(f"Vhod:\n{test_example['Input']}\nIzhod:\n")
+            full_prompt = "\n".join(prompt_parts)
+        elif args.mode == "finetuned":
+            # Few-shot examples + test input
+            prompt_parts = [
+                f"<start_of_turn>user\n{ex['Input']}<end_of_turn>\n"
+                f"<start_of_turn>model\n{ex['GroundTruth']}<end_of_turn>\n"
+                for ex in few_shot_examples
+            ]
+
+            # Add the test prompt (no response yet)
+            prompt_parts.append(
+                f"<start_of_turn>user\n{test_example['Input']}<end_of_turn>\n"
+                f"<start_of_turn>model\n"
+            )
+
+            # Final prompt string
+            full_prompt = "".join(prompt_parts)
+            
 
         # Construct chat-style message
         message = [{"role": "user", "content": full_prompt}]
