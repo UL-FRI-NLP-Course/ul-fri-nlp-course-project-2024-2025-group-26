@@ -43,7 +43,7 @@ sbatch run-inference.sh # For finetuned model
 In this section, we fine-tune the `GaMMS9b/Instruct` model using LoRA with 4-bit quantization to improve training efficiency.
 
 The dataset used for fine-tuning was prepared by [rozmanmarko3](https://github.com/rozmanmarko3)
- and initially saved as [`data/examples_5_vrstic_sloberta99_for_finetune.json`](../../Data/examples_5_vrstic_sloberta99_for_finetune.json). Before training, it was and saved as `./data/train/train.json`.
+ and initially saved as [`data/examples_5_vrstic_sloberta99_for_finetune.json`](../../Data/examples_5_vrstic_sloberta99_for_finetune.json). Before training, it was saved as `./data/train/train.json`.
 
 Note: This dataset is distinct from the examples used in few-shot learning.
 
