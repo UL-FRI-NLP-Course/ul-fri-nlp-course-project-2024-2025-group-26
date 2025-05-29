@@ -39,7 +39,7 @@ pip install nltk
 Run:
 ```bash
 python evaluation.py ../arnes/v1/results_1.json
-python evaluation.py ../arnes/v1/results_1.json
+python evaluation.py ../arnes/v1/results_3.json
 ```
 
 | Excel Rows per Input | Few-Shot Count | Test Example   | Trials | Avg. BLEU Score |
