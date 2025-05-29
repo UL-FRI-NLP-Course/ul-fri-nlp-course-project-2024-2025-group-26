@@ -13,22 +13,3 @@ This project aims to automate the generation of concise, accurate traffic news f
 ├── report/
 └── src/        # Preprocessing & evaluation code
 ```
-
-## Evaluation
-
-Once you obtain results by prompting a model on ARNES, you can evaluate the results like so:
-
-```bash
-cd src
-python -m venv metrics
-source metrics/bin/activate  # On Windows: .\metrics\Scripts\activate
-pip install nltk
-python evaluation.py ../Data/results.json
-```
-
-### 📊 BLEU Score Results (GaMS-9B-Instruct)
-
-| Excel Rows per Input | Few-Shot Count | Test Example   | Trials | Avg. BLEU Score |
-|----------------------|----------------|----------------|--------|-----------------|
-| 1                    | 8              | predict 9th    | 32     | **0.1942**      |
-| 3                    | 2              | predict 3rd    | 32     | **0.1576**      |
