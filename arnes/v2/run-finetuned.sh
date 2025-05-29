@@ -5,9 +5,9 @@
 #SBATCH --gres=gpu:1
 #SBATCH --partition=gpu
 #SBATCH --time=01:00:00
-#SBATCH --job-name="gams-finetuned"
-#SBATCH --output=logs/finetuned-%J.out
-#SBATCH --error=logs/finetuned-%J.err
+#SBATCH --job-name="gams-inference"
+#SBATCH --output=logs/inference-%J.out
+#SBATCH --error=logs/inference-%J.err
 
 # Uncomment the following line to exclude a problematic node
 # from the list of potential nodes for your job
@@ -25,8 +25,9 @@ CASE="examples_5_vrstic_sloberta90.json"
 # CASE="examples_10_vrstic_sloberta99.json"
 
 FEW_SHOT_COUNT=2
+MODE="base"
 
-echo "Running inference on $CASE"
+echo "Running inference ($MODE model, $FEW_SHOT_COUNT-shot) on $CASE"
 
 singularity exec --nv \
   --overlay overlay-workdir \
@@ -36,8 +37,8 @@ singularity exec --nv \
   containers/hf-gpt.sif bash -c "
     export ADAPTER_PATH='/models/finetuned' &&
     python scripts/inference.py \
-      --mode finetuned \
+      --mode $MODE \
       --input_file /data/$CASE \
       --few_shot_count $FEW_SHOT_COUNT \
-      --output_file /outputs/{$FEW_SHOT_COUNT}_finetuned_results_$CASE
+      --output_file /outputs/{$FEW_SHOT_COUNT}_{$MODE}_results_$CASE
 "
