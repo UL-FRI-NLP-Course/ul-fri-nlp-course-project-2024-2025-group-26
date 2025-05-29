@@ -85,6 +85,8 @@ sentence pairs with similarity above the threshold (e.g., 0.99) were removed bef
 
 | Few-Shot Count | Model Type | Excel Rows | Sloberta Threshold | Avg. BLEU Score |
 |----------------|------------|------------|---------------------|-----------------|
+| 0              | base       | 10         | 0.95                | 0.0366          |
+| 0              | finetuned  | 10         | 0.95                | 0.1215          |
 | 2              | base       | 10         | 0.90                | 0.1394          |
 | 2              | base       | 10         | 0.95                | 0.1194          |
 | 2              | base       | 10         | 0.99                | 0.1418          |
