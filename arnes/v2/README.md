@@ -55,7 +55,29 @@ We compare the performance of the fine-tuned model against the base `GaMMS9b/Ins
 For few-shot evaluation, we use a "2-shot predict 3rd" approach:
 Two examples are randomly selected from the dataset to predict the third. This process is repeated 32 times to ensure robust results.
 
-## Results
+## Evaluation
+
+Once you obtain results by prompting a model on ARNES, you can evaluate the results.
+
+Make sure you setup a new venv with `nltk` installed:
+```bash
+cd ../../src
+python -m venv metrics
+source metrics/bin/activate  # On Windows: .\metrics\Scripts\activate
+pip install nltk
+```
+
+### 📊 BLEU Score Results (GaMS-9B-Instruct)
+
+
+Run:
+```bash
+for file in ../arnes/v2/outputs/*.json; do
+# for file in ../Data/*.json; do
+    echo "Evaluating $file"
+    python evaluation.py "$file"
+done
+```
 
 **Note:** *Sloberta Threshold* refers to the cosine similarity cutoff used when constructing the input sequence — 
 sentence pairs with similarity above the threshold (e.g., 0.99) were removed beforehand to shorten the input.

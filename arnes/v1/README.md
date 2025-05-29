@@ -21,6 +21,32 @@ Run the container like so:
 sbatch run-model.sh
 ```
 
+## Evaluation
+
+Once you obtain results by prompting a model on ARNES, you can evaluate the results.
+
+Make sure you setup a new venv with `nltk` installed:
+```bash
+cd ../../src
+python -m venv metrics
+source metrics/bin/activate  # On Windows: .\metrics\Scripts\activate
+pip install nltk
+```
+
+### 📊 BLEU Score Results (GaMS-9B-Instruct)
+
+
+Run:
+```bash
+python evaluation.py ../arnes/v1/results_1.json
+python evaluation.py ../arnes/v1/results_1.json
+```
+
+| Excel Rows per Input | Few-Shot Count | Test Example   | Trials | Avg. BLEU Score |
+|----------------------|----------------|----------------|--------|-----------------|
+| 1                    | 8              | predict 9th    | 32     | **0.1942**      |
+| 3                    | 2              | predict 3rd    | 32     | **0.1576**      |
+
 ---
 
 ## FAQ
