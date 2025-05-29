@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:1
 #SBATCH --partition=gpu
-#SBATCH --time=01:00:00
+#SBATCH --time=02:00:00
 #SBATCH --job-name="gams-finetune"
 #SBATCH --output=logs/train-%J.out
 #SBATCH --error=logs/train-%J.err
