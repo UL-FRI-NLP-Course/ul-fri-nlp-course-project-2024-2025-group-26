@@ -39,15 +39,6 @@ sbatch run-base.sh
 sbatch run-finetuned.sh
 ```
 
-Make sure not to overlap job runs due to overlay directory permissions.
-You can safely schedule them in the timeframe of, say 1 hour:
-
-```bash
-sbatch run-base.sh
-# ... change parameters in run-base...
-sbatch --begin=now+1hours run-base.sh
-```
-
 ## Training
 
 In this section, we fine-tune the `GaMMS9b/Instruct` model using LoRA with 4-bit quantization to improve training efficiency.
