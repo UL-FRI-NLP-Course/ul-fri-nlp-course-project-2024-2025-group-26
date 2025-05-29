@@ -19,8 +19,7 @@ Make sure you copy the following folder structure on ARNES:
 │   ├── logs/
 │   ├── build-container.sh    # Container build script
 │   ├── run-train.sh          # Training job script
-│   ├── run-base.sh           # Base model inference
-│   └── run-finetuned.sh      # Fine-tuned inference
+│   └── run-inference.sh      # Inference script
 ```
 
 ## Pipeline
@@ -35,8 +34,8 @@ sbatch build-container.sh
 sbatch run-train.sh
 
 # 3. Run inference comparisons
-sbatch run-base.sh
-sbatch run-finetuned.sh
+sbatch run-inference.sh # For base model
+sbatch run-inference.sh # For finetuned model
 ```
 
 ## Training
