@@ -40,5 +40,5 @@ singularity exec --nv \
       --mode $MODE \
       --input_file /data/$CASE \
       --few_shot_count $FEW_SHOT_COUNT \
-      --output_file /outputs/{$FEW_SHOT_COUNT}_{$MODE}_results_$CASE
+      --output_file /outputs/${FEW_SHOT_COUNT}_${MODE}_results_$CASE
 "
