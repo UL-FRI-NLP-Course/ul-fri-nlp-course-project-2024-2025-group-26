@@ -73,7 +73,6 @@ pip install nltk
 Run:
 ```bash
 for file in ../arnes/v2/outputs/*.json; do
-# for file in ../Data/*.json; do
     echo "Evaluating $file"
     python evaluation.py "$file"
 done
