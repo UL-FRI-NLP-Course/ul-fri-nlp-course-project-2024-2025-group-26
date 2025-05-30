@@ -145,6 +145,19 @@ We started with a \textit{few-shot} prompting \cite{promptingguide_fewshot} tech
 with a few examples of preprocessed data and corresponding traffic news reports. This approach provides the model
 with contextual examples, helping it mimic the structure and tone of the target traffic news format.
 
+\subsection*{Fine-tuning}
+
+As an extra step, we decided to fine-tune \textit{cjvt/GaMS-9B-Instruct} on our input/ground truth pairs. Since the model has 9 billion parameters and demands substantial GPU memory, we employed QLoRA to enable efficient fine-tuning for the news generation task. This approach allowed us to update only a small number of low-rank adapter weights while keeping the quantized base model frozen. Training prompts were structured as alternating user and model turns using special tokens to clearly mark role boundaries, as shown below:
+
+\begin{verbatim}
+<start_of_turn>user
+...pre-processed input data...
+<end_of_turn>
+<start_of_turn>model
+...ground truth traffic news report...
+<end_of_turn>
+\end{verbatim}
+
 \subsection*{Evaluation metrics}
 
 The evaluation focuses on the BLEU score as a measure of translation quality, with the possibility of adding other metrics in the future.
@@ -158,9 +171,13 @@ The BLEU score ranges from 0 to 1, where a higher value suggests better quality.
 
 \subsection*{Computational Resources}
 
-Inference for all experiments was conducted on the ARNES High-Performance Computing (HPC) cluster, which provides robust resources for large-scale machine learning tasks. The cluster is equipped with NVIDIA H100 GPUs, each featuring 80GB of memory, enabling efficient handling of large language models.
+Inference and training for all experiments was conducted on the ARNE HPC cluster. The cluster is equipped with NVIDIA's H100 80GB and V100 32GB GPUs, enabling efficient handling of LLMs.
 
 \subsection*{Quantitative Results}
+
+\vspace{1em} % adds vertical space before
+\noindent \textbf{V1}
+\vspace{0.5em} % adds vertical space after
 
 For each experimental setup, we ran 32 trials to ensure statistical reliability. During each trial, a randomly sampled
 set of input-output pairs was used, and the performance score was calculated for each pair.
@@ -186,9 +203,40 @@ As expected, increasing the number of shots provided the model with more context
 
 Interestingly, the average BLEU score decreased when we merged several Excel rows into the input. While we expected more data to improve the model's performance, the increase in data duplication led us to reduce the number of shots. With only 2 examples presented to the model, the model lacked sufficient context to recover all the relevant details from the ground truth, which likely led to missing parts in the generated reports.
 
+\vspace{1em} % adds vertical space before
+\noindent \textbf{V2}
+\vspace{0.5em} % adds vertical space after
+
+First, we fine-tuned \textit{cjvt/GaMS-9B-Instruct}. We loaded the base model weights in 4-bit (NF4) precision with
+double quantization. LoRA adapters of rank $16$ ($\alpha = 32$, dropout $=0.1$) were applied to all query/value
+projection layers, with no bias terms and a causal-LM objective.
+Training used a JSON file of Input-GroundTruth pairs, each formatted as described in the Methods section, and
+truncated to $2048$ tokens (including EOS), with $80\%$ used for training and $20\%$ held out for evaluation.
+Optimization employed an AdamW-style optimizer with peak learning rate $0.0002$, linear warmup over $150$ steps
+(3\% of total $5000$ steps), and gradient clipping at $0.3$. Effective batch size was $1$ (no accumulation), and
+mixed precision (FP16) was used.
+
+Next we compared inference on finetuned model with the baseline \textit{cjvt/GaMS-9B-Instruct}. The results are
+shown in Figure~\ref{fig:inf_res}.
+
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\columnwidth]{fig/infer_res.pdf}
+    \caption{Inference results comparing fine-tuned and baseline models.
+    X-axis: Sloberta cosine similarity thresholds (lower = shorter input).
+    Red: fine-tuned model, Blue: baseline.
+    Left: 2-shot, Right: 8-shot prompting.
+    Fine-tuned model shows higher BLEU scores.}
+    \label{fig:inf_res}
+\end{figure}
+
 % ---------- 4.2 Qualitative Example / Error Analysis ----------
 \subsection{Qualitative Example / Error Analysis}
 \label{subsec:qualitative}
+
+\vspace{1em} % adds vertical space before
+\noindent \textbf{V1}
+\vspace{0.5em} % adds vertical space after
 
 To complement the quantitative BLEU scores reported in Table~\ref{tab:bleu-results}, we asked the GPT\mbox{-}o3 assistant to act as an external evaluator: it was shown one randomly selected test case from the same evaluation set and requested to assign an adequacy score on the 1–10 scale described earlier.
 
