@@ -135,7 +135,17 @@ The primary dataset was provided to us by the TA. It consists of three important
 
 
 \subsection*{Data preprocessing}
-The pipeline first loads the RTF files and extracts dates and times embedded in their content. It then selects the corresponding rows from the Excel file based on this timestamp information. From these selected rows, duplicate entries are removed, and the HTML content present in the columns is converted into plain text. The process further cleans the data by keeping only the relevant columns (namely A1, B1, C1, A2, B2, C2, ContentPomembnoSLO, ContentNesreceSLO, ContentZastojiSLO, ContentVremeSLO, ContentOvireSLO, ContentDeloNaCestiSLO, ContentOpozorilaSLO, ContentMednarodneInformacijeSLO, and ContentSplosnoSLO), which are then merged to form the input text for the model.
+The pipeline first loads the RTF files and extracts dates and times embedded in their content. For each rtf file it then selects 10 previous rows. It extracts relavent columns (namely A1, B1, ContentPomembnoSLO, ContentNesreceSLO, ContentZastojiSLO, ContentVremeSLO, ContentOvireSLO, ContentDeloNaCestiSLO, ContentOpozorilaSLO, ContentMednarodneInformacijeSLO, and ContentSplosnoSLO). From each cell we extract headings and inforamtion snippets. Each snippet is then encoded using SloBERTa \cite{SloBERTa} to obtain a vector representation. We then deduplicate the snippets based on their vector representation, ensuring that only unique and relevant information is retained. Finally, we merge the headings and snippets.
+
+We tried three different treasholds for the cosine similarity between the vectors, which resulted in different number of snippets being retained. The thresholds were set to 0.90, 0.95 and 0.99, in \ref{fig:preprocessing} we see that the higher the threshold shorter the text. After manually inspecting the results, we found that the threshold of 0.95 provided a good balance between retaining relevant information and avoiding redundancy.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\linewidth]{fig/treshold_vs_len.png}
+    \caption{Comparison of the SloBERTa treshold and text length. After manually inspecting the results, we found that the threshold of 0.95 provided a good balance between retaining relevant information and avoiding redundancy.}
+    \label{fig:preprocessing}
+\end{figure}
+
 
 
 \subsection*{Prompt Engineering}
