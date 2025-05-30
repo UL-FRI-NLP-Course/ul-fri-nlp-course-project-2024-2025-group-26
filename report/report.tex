@@ -112,7 +112,7 @@ and coherent summaries from structured data.
 \begin{itemize}
     \item Initial Prompt Engineering: Experiments will start by generating news texts directly from the structured traffic data using prompts.
     
-    \item Selection of important data. Our observations show that the final news report is mostly made from only few important data points from the Excel file. We intend to filter the data to remove duplicate enteries and automaticly select the important data points relavant for our traffic news generation.
+    \item Selection of important data. Our observations show that the final news report is mostly made from only few important data points from the Excel file. We intend to filter the data to remove duplicate entries and automatically select the important data points relevant for our traffic news generation.
     
     \item Enhanced Generation through Fine-Tuning: The project will then incorporate parameter-efficient fine-tuning (e.g., LoRA) and retrieval techniques to further refine the generated content, ensuring correct road naming and event descriptions.
     
@@ -133,7 +133,7 @@ and coherent summaries from structured data.
 The primary dataset was provided to us by the TA. It consists of three important sets of files:
 
 \begin{enumerate}
-    \item \textbf{A structured Excel }file containing historical traffic report information from \textit{promet.si}.
+    \item \textbf{A structured Excel} file containing historical traffic report information from \textit{promet.si}.
     \item \textbf{Word documents} with lexical notes and the prescribed structure of a traffic report.
     \item \textbf{Ground truth data} in Rich Text Format (RTF) files, providing text in a ready-to-use format for radio hosts.
 \end{enumerate}
@@ -142,19 +142,19 @@ The primary dataset was provided to us by the TA. It consists of three important
 \subsection*{Data preprocessing}
 
 
-The pipeline first loads the RTF files and extracts dates and times embedded in their content. For each rtf file it then selects 10 previous rows. It extracts relavent columns (namely A1, B1, ContentPomembnoSLO, ContentNesreceSLO, ContentZastojiSLO, ContentVremeSLO, ContentOvireSLO, ContentDeloNaCestiSLO, ContentOpozorilaSLO, ContentMednarodneInformacijeSLO, and ContentSplosnoSLO).
+The pipeline first loads the RTF files and extracts dates and times embedded in their content. For each rtf file it then selects 10 previous rows. It extracts relevant columns (namely A1, B1, ContentPomembnoSLO, ContentNesreceSLO, ContentZastojiSLO, ContentVremeSLO, ContentOvireSLO, ContentDeloNaCestiSLO, ContentOpozorilaSLO, ContentMednarodneInformacijeSLO, and ContentSplosnoSLO).
 
 \paragraph{V1}
 In version one of the pipeline the cells were then deduplicated based only on strict equality of the content. The deduplicated cells were then merged into a single string.
 
 \paragraph{V2}
 In the newest version we extract headings and information snippets from each cell using Beautiful Soup. Each snippet is then encoded using SloBERTa \cite{SloBERTa} to obtain a vector representation. We then deduplicate the snippets based on their vector representation, ensuring that only unique and relevant information is retained. Finally, we merge the headings and snippets.
-We tried three different treasholds for the cosine similarity between the vectors, which resulted in different number of snippets being retained. The thresholds were set to 0.90, 0.95 and 0.99. In Figure~\ref{fig:preprocessing} we see that the higher the threshold, the shorter the text. After manually inspecting the results, we found that the threshold of 0.95 provided a good balance between retaining relevant information and avoiding redundancy.
+We tried three different thresholds for the cosine similarity between the vectors, which resulted in different number of snippets being retained. The thresholds were set to 0.90, 0.95 and 0.99. In Figure~\ref{fig:preprocessing} we see that the higher the threshold, the shorter the text. After manually inspecting the results, we found that the threshold of 0.95 provided a good balance between retaining relevant information and avoiding redundancy.
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.8\linewidth]{fig/treshold_vs_len.png}
-    \caption{Comparison of the SloBERTa treshold and text length.}
+    \caption{Comparison of the SloBERTa threshold and text length.}
     \label{fig:preprocessing}
 \end{figure}
 
@@ -195,7 +195,7 @@ The BLEU score ranges from 0 to 1, where a higher value suggests better quality.
 
 \subsection*{Computational Resources}
 
-Inference and training for all experiments was conducted on the ARNE HPC cluster. The cluster is equipped with NVIDIA's H100 80GB and V100 32GB GPUs, enabling efficient handling of LLMs.
+Inference and training for all experiments were conducted on the ARNE HPC cluster. The cluster is equipped with NVIDIA's H100 80GB and V100 32GB GPUs, enabling efficient handling of LLMs.
 
 \subsection*{Quantitative Results}
 
@@ -240,14 +240,14 @@ Optimization employed an AdamW-style optimizer with peak learning rate $0.0002$,
 (3\% of total $5000$ steps), and gradient clipping at $0.3$. Effective batch size was $1$ (no accumulation), and
 mixed precision (FP16) was used.
 
-Next we compared inference on finetuned model with the baseline \textit{cjvt/GaMS-9B-Instruct}. The results are
+Next we compared inference on fine-tuned model with the baseline \textit{cjvt/GaMS-9B-Instruct}. The results are
 shown in Figure~\ref{fig:inf_res}.
 
 \begin{figure}[ht]
     \centering
     \includegraphics[width=\columnwidth]{fig/infer_res.pdf}
     \caption{Inference results comparing fine-tuned and baseline models.
-    X-axis: Sloberta cosine similarity thresholds (lower = shorter input).
+    X-axis: SloBERTa cosine similarity thresholds (lower = shorter input).
     Red: fine-tuned model, Blue: baseline.
     Left: 2-shot, Right: 8-shot prompting.
     Fine-tuned model shows higher BLEU scores.}
