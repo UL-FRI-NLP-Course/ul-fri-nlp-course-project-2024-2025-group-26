@@ -135,9 +135,18 @@ The primary dataset was provided to us by the TA. It consists of three important
 
 
 \subsection*{Data preprocessing}
+
+\vspace{1em} % adds vertical space before
+\noindent \textbf{V1}
+\vspace{0.5em} % adds vertical space after
+
 The pipeline first loads the RTF files and extracts dates and times embedded in their content. For each rtf file it then selects 10 previous rows. It extracts relavent columns (namely A1, B1, ContentPomembnoSLO, ContentNesreceSLO, ContentZastojiSLO, ContentVremeSLO, ContentOvireSLO, ContentDeloNaCestiSLO, ContentOpozorilaSLO, ContentMednarodneInformacijeSLO, and ContentSplosnoSLO). From each cell we extract headings and inforamtion snippets. Each snippet is then encoded using SloBERTa \cite{SloBERTa} to obtain a vector representation. We then deduplicate the snippets based on their vector representation, ensuring that only unique and relevant information is retained. Finally, we merge the headings and snippets.
 
-We tried three different treasholds for the cosine similarity between the vectors, which resulted in different number of snippets being retained. The thresholds were set to 0.90, 0.95 and 0.99, in \ref{fig:preprocessing} we see that the higher the threshold shorter the text. After manually inspecting the results, we found that the threshold of 0.95 provided a good balance between retaining relevant information and avoiding redundancy.
+\vspace{1em} % adds vertical space before
+\noindent \textbf{V2}
+\vspace{0.5em} % adds vertical space after
+
+We tried three different treasholds for the cosine similarity between the vectors, which resulted in different number of snippets being retained. The thresholds were set to 0.90, 0.95 and 0.99, in Figure~\ref{fig:preprocessing} we see that the higher the threshold, the shorter the text. After manually inspecting the results, we found that the threshold of 0.95 provided a good balance between retaining relevant information and avoiding redundancy.
 
 \begin{figure}[h]
     \centering
