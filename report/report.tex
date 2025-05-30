@@ -21,6 +21,10 @@
 \documentclass[fleqn,moreauthors,10pt]{ds_report}
 \usepackage[english]{babel}
 \usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{float}   
+\usepackage{placeins}  
+
 
 \graphicspath{{fig/}}
 
@@ -253,45 +257,112 @@ shown in Figure~\ref{fig:inf_res}.
 \subsection{Qualitative Example / Error Analysis}
 \label{subsec:qualitative}
 
-\vspace{1em} % adds vertical space before
+\vspace{1em}
 \noindent \textbf{V1}
-\vspace{0.5em} % adds vertical space after
+\vspace{0.5em}
 
-To complement the quantitative BLEU scores reported in Table~\ref{tab:bleu-results}, we asked the GPT\mbox{-}o3 assistant to act as an external evaluator: it was shown one randomly selected test case from the same evaluation set and requested to assign an adequacy score on the 1–10 scale described earlier.
+To supplement BLEU scores (Table~\ref{tab:bleu-results}), we prompted GPT-o3 to rate one randomly selected test case from the evaluation set on a 1–10 adequacy scale.
 
-
-\begin{table}[ht]
+\begin{table}[!ht]
 \centering
-\footnotesize                    % text a bit smaller so it wraps nicely
+\footnotesize
 \renewcommand{\arraystretch}{1.15}
 \setlength{\tabcolsep}{4pt}
 \begin{tabularx}{\linewidth}{@{}X@{}}
 \toprule
-\textbf{Ground-truth bulletin} \\  % <-- row 1 heading
+\textbf{Ground-truth bulletin} \\
 \midrule
-\textit{Podatki o prometu. Zaradi del so zastoji na regionalni cesti Vrhnika–Ljubljana pri avtocestnem priključku Brezovica v obe smeri. Na primorski avtocesti proti Kopru je zaradi razlitega goriva vozišče spolzko med Vrhniko in Logatcem. Na vipavski hitri cesti je zaradi pokvarjenega tovornjaka med predorom Podnanos in priključkom Vipava še vedno zaprt vozni pas proti Novi Gorici. Na mejnem prehodu Obrežje vozniki tovornih vozil na vstop v državo čakajo več kot 2 uri.} \\[0.8em] % small vertical gap
+\textit{Podatki o prometu. Zaradi del so zastoji na regionalni cesti Vrhnika–Ljubljana pri avtocestnem priključku Brezovica v obe smeri. Na primorski avtocesti proti Kopru je zaradi razlitega goriva vozišče spolzko med Vrhniko in Logatcem. Na vipavski hitri cesti je zaradi pokvarjenega tovornjaka med predorom Podnanos in priključkom Vipava še vedno zaprt vozni pas proti Novi Gorici. Na mejnem prehodu Obrežje vozniki tovornih vozil na vstop v državo čakajo več kot 2 uri.} \\[0.8em]
 \midrule
-
-\textbf{Model-generated bulletin} \\  % <-- row 2 heading
+\textbf{Model-generated bulletin} \\
 \midrule
 \textit{Podatki o prometu. Na ljubljanski obvoznici je zastoj proti Primorski, ki sega do razcepa Kozarje. Čas potovanja se tam podaljša za približno četrt ure. Na cesti Maribor – Hoče je zastoj dolg 2 kilometra. Na regionalni cesti Vrhnika – Brezovica – Ljubljana je zastoj pred delovno zaporo pri Brezovici proti Podpeči. Na cesti Podpeč – Brezovica je zastoj od Podpeči proti Brezovici. Priporočamo obvoz po avtocesti med Vrhniko in Ljubljano, vendar le za vozila opremljena z vinjeto ali napravo DarsGo. Na dolenjski avtocesti je med predoroma Mali vrh in Debeli hrib oviran promet zaradi okvare vozila. Na mejnem prehodu Obrežje vozniki tovornih vozil na vstop v državo čakajo do 2 uri.} \\
 \bottomrule
 \end{tabularx}
-\caption{Illustrative example of expected versus generated traffic bulletin used in the OpenAI o3 adequacy evaluation.}
+\caption{Example of ground-truth vs.\ generated bulletin for GPT-o3 adequacy rating.}
 \label{tab:qualitative}
 \end{table}
 
-\paragraph{o3 adequacy score.}  
-Using the 1–10 scale described in our annotation guidelines, this example received an \textbf{adequacy score of 4}.  The score reflects the following observations:
+\paragraph{o3 Adequacy Score.}
+GPT-o3 assigned an \textbf{adequacy score of 4}, based on:
 
-\begin{itemize}
-  \item \textbf{Coverage:} Only one of the four critical events in the ground truth is reproduced; two are omitted entirely (slick lane Vrhnika–Logatec, lane closure Podnanos–Vipava) and one is partially correct (queues Vrhnika–Brezovica but only one direction).
-  \item \textbf{Hallucinations:} Five incidents not present in the ground-truth bulletin are introduced (e.g. Ljubljana ring, Maribor–Hoče, Podpeč queues).
-  \item \textbf{Detail accuracy:} Waiting time at Obrežje is understated (“do 2 uri” vs.\ “več kot 2 uri”), softening the severity.
+\begin{itemize}[noitemsep, topsep=0pt]
+  \item \textbf{Coverage:} Only 1 of 4 key incidents was captured; 2 were missing and 1 incomplete.
+  \item \textbf{Hallucinations:} 5 invented events appeared (e.g., Ljubljana ring, Maribor–Hoče).
+  \item \textbf{Accuracy:} Severity was understated (e.g., “do 2 uri” vs.\ “več kot 2 uri” at Obrežje).
 \end{itemize}
 
-\paragraph{Take-aways.}  
-This qualitative evidence clarifies why the BLEU score ($\approx$ 0.19) remains modest despite grammatical fluency: the model tends to \emph{omit} salient facts and \emph{invent} unrelated incidents, both of which automatic n-gram metrics penalise weakly.  
+\paragraph{Takeaways.}
+Despite fluent output, low BLEU ($\approx 0.19$) aligns with key issues: omission of critical facts and fabricated content—weak spots for automatic metrics.
+
+
+\pagebreak
+\vspace{1em}
+\noindent \textbf{V2}
+\vspace{0.5em}
+
+In V2 (PEFT + optimized pre-processing) we evaluated the results on two examples selected based on BLEU scores: one where the model performs relatively well
+and one where it performs poorly.
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\linewidth}{@{}X@{}}
+\toprule
+\textbf{Example 1: Ground-truth bulletin} \\
+\midrule
+\textit{Podatki o prometu. Zaradi burje je na vipavski hitri cesti med Nanosom in Selom ter na regionalni cesti Razdrto – Podnanos – Manče – Vipava – Ajdovščina prepovedan promet za hladilnike in vozila s ponjavami, lažja od 8 ton. Na cesti Col – Črni Vrh – Godovič je prepovedan promet za priklopnike in polpriklopnike. Cesta čez Vršič je zaprta.} \\
+\midrule
+\textbf{Example 1: Model-generated bulletin} \\
+\midrule
+\textit{Prometne informacije 26. 01. 2023 06.00 1. in 3. program. Podatki o prometu. Na primorski avtocesti je zaradi pnevmatike na vozišču oviran promet pred Vrhniko proti Kopru. Zaradi burje je na vipavski hitri cesti med razcepom Nanos in priključkom Selo prepovedan promet za hladilnike in vozila s ponjavami, lažja od 8 ton.} \\
+\bottomrule
+\end{tabularx}
+\caption{Example where model performs well (\textbf{Adequacy score 3}; BLEU score: $0.5254$; 8-shot prompt on fintuned model, inputs from 10 merged Excel rows simplified with sloberta threshold of $0.95$).}
+\end{table}
+
+\noindent \textbf{Analysis.}  
+\begin{itemize}[noitemsep, topsep=0pt]
+  \item \textbf{Coverage:} Only one of four reference events is reported; three are missing.
+  \item \textbf{Hallucinations:} Tyre obstruction near Vrhnika is fabricated.
+  \item \textbf{Accuracy:} Correct restriction details for the single covered event; incorrect program header.
+\end{itemize}
+
+\vspace{1em}
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.15}
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\linewidth}{@{}X@{}}
+\toprule
+\textbf{Example 2: Ground-truth bulletin} \\
+\midrule
+\textit{Podatki o prometu. Na štajerski avtocesti proti Ljubljani je zaradi del nastal krajši zastoj med Vranskim in predorom Ločica; opozarjamo na nevarnost naleta. Zaradi del je krajši zastoj tudi na primorski avtocesti pred razcepom Kozarje proti Ljubljani. Na mejnem prehodu Gruškovje vozniki tovornih vozil na vstop v državo čakajo uro in pol.} \\
+\midrule
+\textbf{Example 2: Model-generated bulletin} \\
+\midrule
+\textit{\#Zastoji Na primorski avtocesti pred priključkom Unec proti Kopru, zamuda 5 minut.} \\
+\bottomrule
+\end{tabularx}
+\caption{Example where model performs poorly (\textbf{Adequacy score 1}; BLEU score: $0.0027$; 8-shot prompt on base model, inputs from 10 merged Excel rows simplified with sloberta threshold of $0.95$).}
+
+\end{table}
+
+\FloatBarrier            % force all floats out before list
+\noindent \textbf{Analysis.}
+\begin{itemize}[noitemsep, topsep=0pt]
+  \item \textbf{Coverage:} None of the reference events are included.
+  \item \textbf{Hallucinations:} Reports unrelated delay at Unec.
+  \item \textbf{Accuracy/Style:} Entirely incorrect content; informal “\#Zastoji” replaces required format.
+\end{itemize}
+
+\paragraph{Takeaways.}  
+Both examples illustrate the model's difficulty in reproducing critical facts. Even with some correct phrasing, adequacy scores remained low due to omitted key events and hallucinated content.
+
 
 % --------------------------------------------------------------
 
